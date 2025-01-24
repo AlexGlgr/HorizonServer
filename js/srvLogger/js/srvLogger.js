@@ -25,8 +25,16 @@ class ClassLogger extends ClassBaseService_S {
             servers: [
                 { 'host': options.host || '127.0.0.1', 'port': options.port || 5141 }
             ],
-            hostname: options.hostname || 'ap01',       // the name of this host
+            hostname: options.hostname || 'hubc445',       // the name of this host
             facility: options.facility || 'HorizonServer', // the facility for these log messages
+            bufferSize: 1350         // max UDP packet size, should never exceed the
+        }); // объект взаимодействия с грейлогом, должен быть создан при ините, затем используется его метод для записи в грейлог
+        this._us = new ClassGlog2.graylog({
+            servers: [
+                { 'host': options.host || '127.0.0.1', 'port': 5143 }
+            ],
+            hostname: options.hostname || 'Node-RED',       // the name of this host
+            facility: options.facility || 'UserSpace', // the facility for these log messages
             bufferSize: 1350         // max UDP packet size, should never exceed the
         }); // объект взаимодействия с грейлогом, должен быть создан при ините, затем используется его метод для записи в грейлог
         this._WriteToConsole = options.console || false;
@@ -44,6 +52,15 @@ class ClassLogger extends ClassBaseService_S {
         if (typeof opt === 'boolean') {
             this.#_WriteToConsole = opt;
         }
+    }
+    EmitEvents_logger_proxy(_msg) {
+        const msg = {
+            dest: 'proxylogger',
+            com: 'logger-proxy',
+            arg: [],
+            value: [_msg]
+        }
+        this.EmitMsg('logBus', msg.com, msg);
     }
     /**
      * @method
@@ -82,10 +99,16 @@ class ClassLogger extends ClassBaseService_S {
         const obj = _msg.value[1] || {};
         const source = _msg.metadata.source;
 
-        // Запись в грейлог
-        this._gl._log(`${msg}`, obj, {level_desc: fdesc, service: source, service_bus: 'logBus'}, 0.0, flevel);
+        // Запись в грейлог        
+        if (source != 'proxylogger') {
+            this._gl._log(`${msg}`, obj, {level_desc: fdesc, service: source, service_bus: 'logBus'}, 0.0, flevel);
+        }
+        else {
+            this._us._log(`${msg}`, obj, {level_desc: fdesc, service: source, service_bus: 'logBus'}, 0.0, flevel);
+        }
         if (this.#_WriteToConsole) {
-            console.log(`${this.GetSystemTime()} [${source}.${'logBus'}] -> ${fdesc} | ${msg}`);
+            const meta = `${this.GetSystemTime()} [${source}.${'logBus'}] -> ${fdesc} | ${msg}`;
+            console.log(meta);
         }
     }
 }

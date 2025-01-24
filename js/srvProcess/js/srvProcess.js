@@ -2,14 +2,19 @@ const ClassBaseService_S = require('srvService');
 
 const ClassProviderDB_S = require('srvProviderMDB');
 const ClassLogger_S = require('srvLogger');
+const ClassProxyLogger_S = require('srvProxyLogger');
 const ClassDeviceManager_S = require('srvDeviceManager');
+const ClassProxyChannel_S = require('srvProxyChannel');
 
 let arr4 = require('Channels');
+let arr1 = require('Sources');
 
 const SYSREQ_LIST = {
     'logger': ClassLogger_S, 
     'providermdb': ClassProviderDB_S, 
-    'dm': ClassDeviceManager_S
+    'dm': ClassDeviceManager_S,
+    'proxylogger': ClassProxyLogger_S,
+    'proxychannel': ClassProxyChannel_S
 };
 
 const SERV_REQ_LIST = {
@@ -39,6 +44,20 @@ const SYSSREVICES_LIST = [
         Status: 'stopped',
         Protocol: 'sys',
         PrimaryBus: 'logBus'
+    },
+    {
+        Name: 'proxylogger',
+        Importance: 'primary',
+        Status: 'stopped',
+        Protocol: 'sys',
+        PrimaryBus: 'logBus'
+    },
+    {
+        Name: 'proxychannel',
+        Importance: 'primary',
+        Status: 'stopped',
+        Protocol: 'sys',
+        PrimaryBus: 'dataBus'
     },
     {
         Name: 'providermdb',
@@ -139,7 +158,7 @@ class ClassProcessSrv extends ClassBaseService_S {
         this.#_TimeOut = setTimeout(() => {
             /* debughome */
             this.EmitEvents_logger_log({level: 'E', msg: `No response from DataBase. Using default template for debug`});
-            let arr1 = [
+            /*let arr1 = [
                 { ID: 1, Status: "active", Name: "PLC11", Type: "source", Property: "rw", Protocol: "lhp", DN: "", IP: "192.168.50.151", Port: "8080", SensorChExpected: 64 },
                 { ID: 15, Status: "inactive", Name: "PLC12", Type: "source", Property: "rw", Protocol: "lhp", DN: "", IP: "192.168.50.152", Port: "8080", SensorChExpected: 64 },
                 { ID: 2, Status: "active", Name: "PLC21", Type: "source", Property: "rw", Protocol: "lhp", DN: "", IP: "192.168.50.156", Port: "443", SensorChExpected: 64 },
@@ -148,20 +167,23 @@ class ClassProcessSrv extends ClassBaseService_S {
                 { ID: 5, Status: "active", Name: "PLC32", Type: "source", Property: "rw", Protocol: "lhp", DN: "", IP: "192.168.50.162", Port: "8080", SensorChExpected: 64 },
                 { ID: 6, Status: "active", Name: "hubc445", Type: "source", Property: "r", Protocol: "rpi", DN: "", IP: "192.168.50.233", Port: "7777", SensorChExpected: 64 },
                 { ID: 7, Status: "active", Name: "Broker01", Type: "source", Property: "w", Protocol: "mqttgw", DN: "", IP: "localhost", Port: "9001", Login: 'operator2', Password: '34pass', SensorChExpected: 64 },
-            ];
+            ];*/
             let arr2 = [
                 { Name: "process", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "primary", InitOrder: 10, Protocol: 'sys', PrimaryBus: 'sysBus', BusList: ['logBus', 'mdbBus', 'dataBus'], EventList: ['process-config-system-get', 'process-ws-connect-done', 'process-mqtt-connect-done', 'process-rpi-connect-done'], AdvancedOptions: {}, Dependency: ['srvService'], Description: 'Process desription'},
-                { Name: "logger", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "primary", InitOrder: 30, Protocol: 'sys', PrimaryBus: 'logBus', BusList: ['sysBus', 'mdbBus', 'dataBus', 'rpiBus', 'lhpBus', 'mqttBus'], EventList: ['logger-log', 'all-init-stage1-set'], AdvancedOptions: {}, Dependency: ['srvService', 'graylog2'], Description: 'Logger desription'},
+                { Name: "logger", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "primary", InitOrder: 30, Protocol: 'sys', PrimaryBus: 'logBus', BusList: ['sysBus', 'mdbBus', 'dataBus', 'rpiBus', 'lhpBus', 'mqttBus'], EventList: ['logger-log', 'all-init-stage1-set'], AdvancedOptions: {port: 5142, console: true}, Dependency: ['srvService', 'graylog2'], Description: 'Logger desription'},
+                { Name: "proxylogger", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "primary", InitOrder: 35, Protocol: 'sys', PrimaryBus: 'logBus', BusList: ['sysBus', 'mdbBus', 'dataBus', 'rpiBus', 'lhpBus', 'mqttBus'], EventList: ['logger-log', 'all-init-stage1-set'], AdvancedOptions: {}, Dependency: ['srvService'], Description: 'Proxy logger desription'},
+                { Name: "proxychannel", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "primary", InitOrder: 38, Protocol: 'sys', PrimaryBus: 'dataBus', BusList: ['sysBus', 'dataBus', 'logBus'], EventList: ['all-init-stage1-set'], AdvancedOptions: {}, Dependency: ['srvService'], Description: 'Proxy channel desription'},
                 { Name: "providermdb", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "primary", InitOrder: 20, Protocol: 'sys', PrimaryBus: 'mdbBus', BusList: ['logBus', 'sysBus'], EventList: ['event1', 'event2', 'event3', 'event4'], AdvancedOptions: {}, Dependency: ['srvService', 'mongodb'], Description: 'Provider desription'},
                 { Name: "dm", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "primary", InitOrder: 40, Protocol: 'sys', PrimaryBus: 'sysBus', BusList: ['logBus', 'mdbBus', 'dataBus'], EventList: ['all-init-stage1-set', 'all-close', 'all-connections-done', 'mqttclient-send'], AdvancedOptions: {}, Dependency: ['srvService'], Description: 'Device Manager desription'},
                 { Name: "wsclient", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "auxilary", InitOrder: 50, Protocol: 'lhp', PrimaryBus: 'lhpBus', BusList: ['logBus', 'sysBus'], EventList: ['all-init-stage1-set', 'all-close', 'wsclient-connect'], AdvancedOptions: {}, Dependency: ['srvService', 'ws'], Description: 'WSClient desription'},
                 { Name: "proxywsclient", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "auxilary", InitOrder: 60, Protocol: 'lhp', PrimaryBus: 'lhpBus', BusList: ['logBus', 'sysBus'], EventList: ['all-init-stage1-set', 'all-close', 'proxywsclient-msg-get', 'proxywsclient-send'], AdvancedOptions: {}, Dependency: ['srvService'], Description: 'ProxyWS desription'},
                 { Name: "mqttclient", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "auxilary", InitOrder: 70, Protocol: 'mqtt', PrimaryBus: 'mqttBus', BusList: ['logBus', 'sysBus'], EventList: ['all-init-stage1-set', 'all-close', 'all-connections-done', 'mqttclient-send'], AdvancedOptions: {}, Dependency: ['srvService'], Description: 'MQTT client desription'},
-                { Name: "proxymqtt", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "auxilary", InitOrder: 80, Protocol: 'mqtt', PrimaryBus: 'mqttBus', BusList: ['logBus', 'sysBus'], EventList: ['all-init-stage1-set', 'all-close', 'proxymqttclient-get-msg', 'proxymqttclient-send', 'proxymqttclient-deviceslist-get'], AdvancedOptions: {}, Dependency: ['srvService'], Description: 'Proxymqtt desription'},
+                { Name: "proxymqttclient", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "auxilary", InitOrder: 80, Protocol: 'mqtt', PrimaryBus: 'mqttBus', BusList: ['logBus', 'sysBus'], EventList: ['all-init-stage1-set', 'all-close', 'proxymqttclient-get-msg', 'proxymqttclient-send', 'proxymqttclient-deviceslist-get'], AdvancedOptions: {}, Dependency: ['srvService'], Description: 'Proxymqtt desription'},
                 { Name: "mqttgw", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "auxilary", InitOrder: 90, Protocol: 'mqttgw', PrimaryBus: 'mqttGwBus', BusList: ['logBus', 'sysBus'], EventList: ['all-init-stage1-set', 'all-connect'], AdvancedOptions: {}, Dependency: ['srvService', 'mqtt'], Description: 'MqttGateway desription'},
                 { Name: "proxymqttgw", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "auxilary", InitOrder: 100, Protocol: 'mqttgw', PrimaryBus: 'mqttGwBus', BusList: ['logBus', 'sysBus'], EventList: ['all-init-stage1-set', 'all-connect'], AdvancedOptions: {}, Dependency: ['srvService'], Description: 'MqttGateway desription'},
                 { Name: "rpiclient", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "auxilary", InitOrder: 110, Protocol: 'rpi', PrimaryBus: 'rpiBus', BusList: ['logBus', 'sysBus'], EventList: ['all-init-stage1-set', 'all-close'], AdvancedOptions: {}, Dependency: ['srvService'], Description: 'RpiClient desription'},
                 { Name: "proxyrpiclient", Status: 'stopped', ErrorMsg: '', Service: null, Importance: "auxilary", InitOrder: 120, Protocol: 'rpi', PrimaryBus: 'rpiBus', BusList: ['logBus', 'sysBus'], EventList: ['all-init-stage1-set', 'all-close', 'proxyrpiclient-msg-get', 'proxyrpiclient-send', 'proxyrpiclient-deviceslist-get'], AdvancedOptions: {}, Dependency: ['srvService'], Description: 'ProxyRpiClient desription'}
+               
                 
             ];
             let arr3 = [
@@ -349,7 +371,7 @@ class ClassProcessSrv extends ClassBaseService_S {
         if (_dbTemplates && _dbChannels) {
             _dbChannels.forEach(channel => {
                 const source = this.#_SourcesState[channel.SourceName];
-                if (source) {
+                if (source.Property.includes('r')) {
                     let chService = Object.assign({}, _dbTemplates.find(template => template.Protocol == source.Protocol));
                     chService.AdvancedOptions = channel;
                     chService.Service = new (require(SERV_REQ_LIST[channel.ChType]))({_busList: this.#_GBusList, _busNameList: chService.BusList.concat([chService.PrimaryBus]), _advOpts: channel});

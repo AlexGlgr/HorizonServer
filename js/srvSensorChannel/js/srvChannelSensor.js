@@ -260,7 +260,7 @@ class ClassChannelSensor extends ClassBaseService_S {
      * @param {Number} _val 
      */
     set Value(_val) {
-        console.log(`${this.Name}.Value = ${_val}`);
+        //console.log(`${this.Name}.Value = ${_val}`);
         let val = this.#_Suppression.SuppressValue(_val);
         val = this.#_Transform.TransformValue(val);
         this.#_ValueBuffer.push(val);
