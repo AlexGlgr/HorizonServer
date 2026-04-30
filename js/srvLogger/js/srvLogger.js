@@ -40,7 +40,7 @@ class ClassLogger extends ClassBaseService_S {
         this._WriteToConsole = options.console || false;
         this.FillEventOnList('sysBus', EVENT_SYSBUS_LIST);
         this.FillEventOnList('logBus', EVENT_LOGBUS_LIST);
-        this.ListenPort();
+        this.ListenPort(options.listen ?? false);
 
         this.EmitEvents_logger_log({level: 'INFO', msg: 'Logger initialized.', obj: this._gl.config});
     }
@@ -104,19 +104,22 @@ class ClassLogger extends ClassBaseService_S {
         }
     }
 
-    ListenPort() {
-        const socket = dgram.createSocket({type: 'udp4'});
+    ListenPort( _listen ) {
+        if (_listen) {
+            const socket = dgram.createSocket({type: 'udp4'});
     
-        socket.on('message', (msg) => {
-            console.log(JSON.parse(msg.toString()));
-            //this._gl._log(msg);
-        });
-        
-        socket.on('listening', () => {
-            console.log('Listening');
-        });
-        
-        socket.bind(44999);
+            socket.on('message', (msg) => {
+                console.log(JSON.parse(msg.toString()));
+                //this._gl._log(msg);
+            });
+            
+            socket.on('listening', () => {
+                console.log('Listening');
+            });
+            
+            socket.bind(44999);
+        }
     }
+    
 }
 module.exports = ClassLogger;

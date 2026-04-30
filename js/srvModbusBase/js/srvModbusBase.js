@@ -41,7 +41,7 @@ class ModbusBase extends ClassBaseService_S {
             switch (this.#_Type) {
                 case "RTU":
                     if (_opts != null && _opts.serial != null && _opts.baudrate != null) {
-                        client.connectRTU(_opts.serial, {baudrate: _opts.baudrate});
+                        client.connectRTU(_opts.serial, {baudRate: _opts.baudrate});
                     }
                     else {
                         error = true;
@@ -55,6 +55,7 @@ class ModbusBase extends ClassBaseService_S {
                                 error = true;
                                 console.log(err);
                             }
+                            client._port._client.setKeepAlive(true, 0);
                         });
                     }
                     else {
@@ -69,6 +70,7 @@ class ModbusBase extends ClassBaseService_S {
                                 error = true;
                                 console.log(err);
                             }
+                            client._port._client.setKeepAlive(true, 0);
                         });
                     }
                     else {
@@ -86,7 +88,7 @@ class ModbusBase extends ClassBaseService_S {
             error = true;
             this.EmitEvents_logger_log({level: 'W', msg: `Error creating Modbus ${this.#_Type} cleint. Message: ${e.message}`});
         }
-        client._port._client.setKeepAlive(true, 0);
+        
         /*client.on('close', (err) => {
             client = this.Initialize_modbus_client(_opts);
         });
@@ -215,7 +217,7 @@ class ModbusBase extends ClassBaseService_S {
         if (_client.failCounter >= 10) {
             _client.commQueue.length = 0;
             _client.mbclient.destroy(() => {
-                _cb(null, {message: `Closing ${_client.ip}:${_client.port}@${_comm.mbID}`, obj: _comm})
+                _cb(null, {message: `Closing ${_client.ip ?? _client.serial}:${_client.port ?? _client.baud}@${_comm.mbID}`, obj: _comm})
             });
             return;
         }
@@ -227,8 +229,8 @@ class ModbusBase extends ClassBaseService_S {
         _client.isOccupied = true;
         let cbTOut = setTimeout(() => {
             _client.isOccupied = false;
-            _client.failCounter++
-            _cb(null, {message: `Timeout. No response from ${_client.ip}:${_client.port}@${_comm.mbID}`, obj: _comm});
+            _client.failCounter++;
+            _cb(null, {message: `Timeout. No response from ${_client.ip ?? _client.serial}:${_client.port ?? _client.baud}@${_comm.mbID}`, obj: _comm});
             if (_client.commQueue.length > 0) {
                 let [comm, cb] = _client.commQueue.shift();
                 this.Queue_client_command(_client, comm, cb);
@@ -239,7 +241,7 @@ class ModbusBase extends ClassBaseService_S {
         this.Execute_modbus_command (_comm.id, _comm.reg, _comm.dat, _comm.len, _client.mbclient)
         .then((data) => {
             clearTimeout(cbTOut);
-             _client.failCounter = 0;
+            _client.failCounter = 0;
             _cb(data, null);
             _client.isOccupied = false;
             if (_client.commQueue.length > 0) {
@@ -250,7 +252,7 @@ class ModbusBase extends ClassBaseService_S {
         .catch((err) => {
             clearTimeout(cbTOut);
              _client.failCounter++;
-            _cb(null, {message: `Error sending modbus command to ${_client.ip}:${_client.port}@${_comm.mbID}. Reason: ${err.message}`, obj: _comm});
+            _cb(null, {message: `Error sending modbus command to ${_client.ip ?? _client.serial}:${_client.port ?? _client.baud}@${_comm.mbID}. Reason: ${err}`, obj: _comm});
             _client.isOccupied = false;
             if (_client.commQueue.length > 0) {
                 let [comm, cb] = _client.commQueue.shift();

@@ -1,13 +1,12 @@
 const ClassBaseService_S = require('./../../srvService/js/srvService');
 
 const PRIMARY_BUS = 'modbusdrsBus';
-const EXPLOIT_BUS = 'modbusrotBus';
 const CONNECTION_TIMEOUT = 5000;
 
 EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'test-connect', 'all-disconnect'];
 EVENT_MODBUS_LIST = ['modbusclientdrs-send'];
 EVENT_EXPLOIT_LIST = ['modbusdrs-msg-get'];
-BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus', EXPLOIT_BUS];
+BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
 const PROTOCOL = 'mbdrs';
 const THIS_NAME = 'modbusDRS';
 
@@ -37,18 +36,22 @@ REG_IN = {
 class MW_DRS240 extends ClassBaseService_S {
     static SCALE_FACTORS = SCALE_FACTORS;
     #_Sources;
+    #_Host;
+    #_ExpBus;
     /**
      * @constructor
      * @description
      * Конструктор класса логгера
      * @param {[ClassBus_S]} _busList - список шин, созданных в проекте
      */
-    constructor({ _busList, _node }) {
-        super({ _name: THIS_NAME, _busNameList: BUS_NAMES_LIST, _busList, _node });
+    constructor({ _busList, _node, _host, _expBus }) {
+        super({ _name: THIS_NAME, _busNameList: [...BUS_NAMES_LIST, _expBus], _busList, _node });
         this.#_Sources = {};
+        this.#_Host = _host;
+        this.#_ExpBus = _expBus;
         this.FillEventOnList('sysBus', EVENT_SYSBUS_LIST);
         this.FillEventOnList(PRIMARY_BUS, EVENT_MODBUS_LIST);
-        this.FillEventOnList(EXPLOIT_BUS, EVENT_EXPLOIT_LIST);
+        this.FillEventOnList(this.#_ExpBus, EVENT_EXPLOIT_LIST);
         this.EmitEvents_logger_log({level: 'I', msg: 'ModbusDRS initialized.'});
     }
 
@@ -69,13 +72,13 @@ class MW_DRS240 extends ClassBaseService_S {
      */
     EmitEvents_modbusdrs_source_toss({arg, value}) {
         const msg = {
-            dest: 'modbusclientrot',
+            dest: this.#_Host,
             com: 'modbus-source-toss',
             arg,
             value
         };
         
-        this.EmitMsg(EXPLOIT_BUS, msg.com, msg);
+        this.EmitMsg(this.#_ExpBus, msg.com, msg);
     }
 
     /**
@@ -85,13 +88,13 @@ class MW_DRS240 extends ClassBaseService_S {
      */
     EmitEvents_enqueue_command({arg, value}) {
         const msg = {
-            dest: 'modbusclientrot',
+            dest: this.#_Host,
             com: 'enqueue-command',
             arg,
             value
         };
         
-        this.EmitMsg(EXPLOIT_BUS, msg.com, msg);
+        this.EmitMsg(this.#_ExpBus, msg.com, msg);
     }
 
     HandlerEvents_modbusdrs_msg_get( _topic, _msg ){
@@ -156,7 +159,6 @@ class MW_DRS240 extends ClassBaseService_S {
 
     Start() {
         Object.entries(this.#_Sources).forEach(([name, source]) => {
-            console.log(source.Groups);
             if (source.Groups != undefined && source.Groups.length > 0) {                
                 source.Groups.forEach((group) => {
                     if (group.beh == 'Sensor') {
@@ -168,7 +170,9 @@ class MW_DRS240 extends ClassBaseService_S {
                                 dat: 0,
                                 mbID: group.mbID
                             }
-                            this.EmitEvents_enqueue_command({ arg: [name], value: [comm]});
+                            if (source.IsConnected) {
+                                this.EmitEvents_enqueue_command({ arg: [name], value: [comm]});
+                            }
                         },group.interval);
                     }                    
                 })

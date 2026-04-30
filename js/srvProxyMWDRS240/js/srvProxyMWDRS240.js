@@ -74,20 +74,25 @@ class ProxyMWDRS240 extends ClassBaseService_S {
         //const [ source_name ] = _msg.arg;
         //const hash = this.#GetMsgHash(msg_from_plc.com, source_name);
         const source_name = _msg.arg[0];
-        //const ch_name = this.#_SourceMapNames.find(obj => obj.chNum == _msg.arg[1] && obj.source == source_name).Name;
+        try {
+            const ch_name = this.#_SourceMapNames.find(obj => obj.chNum == _msg.arg[1] && obj.source == source_name).Name;
 
-        /*const msg = {
-            dest: ch_name,
-            com: COM_ALL_DATA_RAW_GET,
-            arg: [source_name],
-            value: [{
+            const msg = {
+                dest: ch_name,
                 com: COM_ALL_DATA_RAW_GET,
-                arg: [ch_name],
-                value: [_msg.value[0]]
-            }]
+                arg: [source_name],
+                value: [{
+                    com: COM_ALL_DATA_RAW_GET,
+                    arg: [ch_name],
+                    value: [_msg.value[0]]
+                }]
+            }
+            this.EmitMsg(PRIMARY_BUS, msg.com, msg);
         }
-        this.EmitMsg(PRIMARY_BUS, msg.com, msg);*/
-        console.log(source_name + ': ' + _msg.value[0]);
+        catch (e) {
+            this.EmitEvents_logger_log({level: 'E', msg: `ProxyMWDRS: ${e.message}`});
+        }
+        //console.log(source_name + ': ' + _msg.value[0]);
     }
     /**
      * @method

@@ -1,11 +1,12 @@
 const ClassModbusBase_S = require('./../../srvModbusBase/js/srvModbusBase');
 
 const CONNECTION_TIMEOUT = 5000;
-const PRIMARY_BUS = 'modburtuBus';
+const PRIMARY_BUS = 'modbusrtuBus';
 
 EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'test-connect', 'all-disconnect'];
-EVENT_MODBUS_LIST = ['modbusclientrtu-send'];
+EVENT_MODBUS_LIST = ['modbusclientrtu-send', 'modbus-source-toss', 'enqueue-command'];
 BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
+const PROXY = {dest: 'proxymodbusrot', com: 'proxymodbusrot-msg-get'};
 const PROTOCOL = 'modbusrtu';
 const THIS_NAME = 'modbusclientrtu';
 const DEFAULT_RATE = 9600;
@@ -44,9 +45,10 @@ class ModbusClientRTU extends ClassModbusBase_S {
      * @returns msg         - отправляемое сообщение
      */
     EmitEvents_proxymodbusrtu_msg_get({arg, value}) {
+        const conductor = this.#_Sources[arg[0]].conductor;
         const msg = {
-            dest: 'proxymodbusrtu',
-            com: 'proxymodbusrtu-msg-get',
+            dest: conductor.dest,
+            com: conductor.com,
             arg,
             value
         };
@@ -61,6 +63,41 @@ class ModbusClientRTU extends ClassModbusBase_S {
     HandlerEvents_test_connect(_topic, _msg) {
         this.EmitEvents_logger_log({level: 'I', msg: 'Connection starting. . .'});
         this.Connect();
+    }
+    /**
+     * @method
+     * @description Обработчик события, запускает подключение к источникам
+     * @param {String} _topic       - топик сообщения 
+     * @param {Object} _msg         - само сообщение
+     */
+    HandlerEvents_modbus_source_toss(_topic, _msg) {
+        const [conductor] = _msg.arg;
+        const [src] = _msg.value;
+
+        this.Add_new_source (src, conductor);
+    }
+    /**
+     * @method
+     * @description Перенаправляет команды с других служб на источкик modbusRTU
+     * @param {*} _topic 
+     * @param {*} _msg 
+     */
+    HandlerEvents_enqueue_command(_topic, _msg) {
+        const [srcName] = _msg.arg;
+        const [comm] = _msg.value;
+
+        try {
+            this.Queue_client_command(this.#_Sources[srcName].client, comm, (data, err) => {
+                if (err) {
+                    this.EmitEvents_logger_log({level: 'E', msg: err.message, obj: JSON.stringify(err.obj)});
+                }
+                else
+                    this.EmitEvents_proxymodbusrtu_msg_get({arg: [srcName, comm], value: [data]});
+            })
+        }
+        catch (e) {
+            console.log(e.message);
+        }
     }
      /**
      * @method
@@ -112,7 +149,7 @@ class ModbusClientRTU extends ClassModbusBase_S {
         });
     }
 
-    Add_new_source ( _source ) {
+    Add_new_source ( _source, _conductor ) {
         let name = _source.Name;
         let serial = _source.Serial;
         let baud = _source.Baudrate || DEFAULT_RATE;
@@ -127,14 +164,32 @@ class ModbusClientRTU extends ClassModbusBase_S {
                 commQueue: [], 
                 isOccupied: false, 
                 serial: serial, 
-                baud: baud
+                baud: baud,
+                failCounter: 0
             };
         }
         else {
             client = usedSource.client;
         }
 
-        this.#_Sources[name] = {client: client, groups: _source.Groups};
+        client.mbclient._port.on('open', () => {
+            _source.IsConnected = true;
+            this.#_Sources[name].IsConnected = true;
+        });
+
+        client.mbclient._port.on('close', () => {
+            _source.IsConnected = false;
+            this.#_Sources[name].IsConnected = false;
+            console.log('Closed by event');
+        });
+
+        if (client.mbclient != undefined) {
+            this.#_Sources[name] = {client: client, groups: _source.Groups, conductor: _conductor, IsConnected: false};
+        }
+        else {
+            console.log(`${name} out of reach`);
+            this.EmitEvents_logger_log({level: 'W', msg: `Failed to connect to ${name}`, obj: this.SourcesState});
+        }
     }
 
     /**
@@ -143,7 +198,7 @@ class ModbusClientRTU extends ClassModbusBase_S {
      */
     Start() {
         Object.entries(this.#_Sources).forEach(([name, source]) => {
-            if (source.groups != undefined && source.groups.length > 0) {
+            if (source.groups != undefined && source.groups.length > 0 && source.conductor.dest == PROXY.dest) {
                 source.groups.forEach((group) => {
                     setInterval(() => {
                         let comm = {
@@ -153,14 +208,16 @@ class ModbusClientRTU extends ClassModbusBase_S {
                             dat: 0,
                             mbID: group.mbID
                         }
-                        this.Queue_client_command(source.client, comm, (data) => {
-                            if (data == null) { this.EmitEvents_logger_log({level: 'W', msg: `No data recieved from: ${name}`, obj: source.client}); }
-                            else {
-                                data.data.forEach((dat, i) => {
-                                    this.EmitEvents_proxymodbusrtu_msg_get({arg: [name, i + group.startReg], value: [dat]});
-                                })
-                            }
-                        })
+                        if (source.IsConnected) {
+                            this.Queue_client_command(source.client, comm, (data) => {
+                                if (data == null) { this.EmitEvents_logger_log({level: 'W', msg: `No data recieved from: ${name}`, obj: source.client}); }
+                                else {
+                                    data.data.forEach((dat, i) => {
+                                        this.EmitEvents_proxymodbusrtu_msg_get({arg: [name, i + group.startReg], value: [dat]});
+                                    })
+                                }
+                            })
+                        }
                     },group.interval);
                 })
             }
@@ -180,7 +237,7 @@ class ModbusClientRTU extends ClassModbusBase_S {
         Object.values(this.SourcesState)
             .filter(source => source.Protocol === PROTOCOL && !source.IsConnected && source.CheckProcess && source.Status === 'active')
             .forEach((source) => {
-                this.Add_new_source(source);
+                this.Add_new_source(source,PROXY);
                 sourcesCount++;
         });
         if (sourcesCount == 0) {

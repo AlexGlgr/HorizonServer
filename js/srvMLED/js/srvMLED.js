@@ -1,12 +1,11 @@
 const ClassBaseService_S = require('./../../srvService/js/srvService');
 
 const PRIMARY_BUS = 'modbusledBus';
-const EXPLOIT_BUS = 'modbusrotBus';
 const CONNECTION_TIMEOUT = 5000;
 
 EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'test-connect', 'all-disconnect'];
 EVENT_MODBUS_LIST = ['modbusclientled-send'];
-BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus', EXPLOIT_BUS];
+BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
 const PROTOCOL = 'mled';
 const THIS_NAME = 'modbusled';
 
@@ -53,20 +52,22 @@ class ModbusLED extends ClassBaseService_S {
         ERROR: 'ERROR'
     };
     #_Sources;
-    #_Blink;
+    #_Host;
+    #_ExpBus;
     /**
      * @constructor
      * @description
      * Конструктор класса логгера
      * @param {[ClassBus_S]} _busList - список шин, созданных в проекте
      */
-    constructor({ _busList, _node }) {
-        super({ _name: THIS_NAME, _busNameList: BUS_NAMES_LIST, _busList, _node });
+    constructor({ _busList, _node, _host, _expBus }) {
+        super({ _name: THIS_NAME, _busNameList: [...BUS_NAMES_LIST, _expBus], _busList, _node });
         this.#_Sources = {};
-        this.#_Blink = 0;
+        this.#_Host = _host;
+        this.#_ExpBus = _expBus;
         this.FillEventOnList('sysBus', EVENT_SYSBUS_LIST);
         this.FillEventOnList(PRIMARY_BUS, EVENT_MODBUS_LIST);
-        this.EmitEvents_logger_log({level: 'I', msg: 'MModbusLED initialized.'});
+        this.EmitEvents_logger_log({level: 'I', msg: 'ModbusLED initialized.'});
     }
 
     /**
@@ -76,13 +77,12 @@ class ModbusLED extends ClassBaseService_S {
      */
     EmitEvents_modbusled_source_toss({arg, value}) {
         const msg = {
-            dest: 'modbusclientrot',
+            dest: this.#_Host,
             com: 'modbus-source-toss',
             arg,
             value
         };
-        
-        this.EmitMsg(EXPLOIT_BUS, msg.com, msg);
+        this.EmitMsg(this.#_ExpBus, msg.com, msg);
     }
 
     /**
@@ -92,13 +92,13 @@ class ModbusLED extends ClassBaseService_S {
      */
     EmitEvents_enqueue_command({arg, value}) {
         const msg = {
-            dest: 'modbusclientrot',
+            dest: this.#_Host,
             com: 'enqueue-command',
             arg,
             value
         };
         
-        this.EmitMsg(EXPLOIT_BUS, msg.com, msg);
+        this.EmitMsg(this.#_ExpBus, msg.com, msg);
     }
 
     HandlerEvents_modbusclientled_send( _topic, _msg ){
@@ -165,7 +165,12 @@ class ModbusLED extends ClassBaseService_S {
                 break;
             case 'diode':
                 let reg1, reg2;
-                comm.reg = 100 + state.dStart * 2;
+                comm.reg = 102 + state.dStart * 2;
+                comm.len = 1;
+                comm.dat = this.State_to_Val([state.Status], this.#_Sources[source].Groups[grpID].blink);
+
+                this.#_Sources[source].Groups[grpID].Lights[state.dStart] = state.Status;
+
                 if (typeof state.color === 'string' || state.color instanceof String) {
                     state.color = state.color.toLowerCase() || 'black';
                     reg1 = REG_COLOR_LIST[state.color][0];
@@ -181,6 +186,38 @@ class ModbusLED extends ClassBaseService_S {
                 comm.dat = [];
                 for (let i = 0; i < state.dQuan; i++) { comm.dat.push(reg1, reg2); }
 
+                comm.id = 0x10;
+                break;
+            case 'on':
+                comm.reg = 102 + state.Num * 2;
+                comm.len = 1;
+
+                this.#_Sources[source].Groups[grpID].Lights[state.Num + 1] = ModbusLED.LIGHT_STATUS.ON;
+                comm.dat = [65535, 255];
+                comm.id = 0x10;
+                break;
+            case 'off':
+                comm.reg = 102 + state.Num * 2;
+                comm.len = 1;
+
+                this.#_Sources[source].Groups[grpID].Lights[state.Num + 1] = ModbusLED.LIGHT_STATUS.OFF;
+                comm.dat = [0, 0];
+                comm.id = 0x10;
+                break;
+            case 'warn':
+                comm.reg = 102 + state.Num * 2;
+                comm.len = 1;
+
+                this.#_Sources[source].Groups[grpID].Lights[state.Num + 1] = ModbusLED.LIGHT_STATUS.WARN;
+                comm.dat = [255 * this.#_Sources[source].Groups[grpID].blink, 0];
+                comm.id = 0x10;
+                break;
+            case 'error':
+                comm.reg = 102 + state.Num * 2;
+                comm.len = 1;
+
+                this.#_Sources[source].Groups[grpID].Lights[state.Num + 1] = ModbusLED.LIGHT_STATUS.ERROR;
+                comm.dat = [255, 0];
                 comm.id = 0x10;
                 break;
             default:
@@ -243,7 +280,9 @@ class ModbusLED extends ClassBaseService_S {
                             dat: this.State_to_Val(group.Lights, group.blink),
                             mbID: group.mbID
                         }
-                        this.EmitEvents_enqueue_command({ arg: [_name], value: [comm]});
+                        if (_source.IsConnected) {
+                            this.EmitEvents_enqueue_command({ arg: [_name], value: [comm]});
+                        }                        
                     },group.interval);
                 }
             })

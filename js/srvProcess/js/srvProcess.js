@@ -262,16 +262,23 @@ class ClassProcessSrv extends ClassBaseService_S {
                                 if (!this.#_GBusList[service.PrimaryBus]) {
                                     this.CreateBus(service.PrimaryBus);
                                 }
-                                service.Service = new (require(config[service.Name]))({_busList: this.#_GBusList, _node: this.#_Node});
-                                this.#_ServicesState[service.Name] = service;
-                                if (service.Importance === 'exploitary' && !this.#_ServicesState[service.AdvancedOptions.host]) {
+                                if (service.Importance === 'exploitary') {
                                     let hostService = _dbServices.filter(host => host.Name === service.AdvancedOptions.host)[0];
-                                    if (!this.#_GBusList[hostService.PrimaryBus]) {
+                                    if (this.#_GBusList[hostService.PrimaryBus] == undefined) {
                                         this.CreateBus(hostService.PrimaryBus);
                                     }
-                                    hostService.Service = new (require(config[hostService.Name]))({_busList: this.#_GBusList, _node: this.#_Node});
-                                    this.#_ServicesState[hostService.Name] = hostService;
+                                    if (this.#_ServicesState[hostService.Name] == undefined) {
+                                        hostService.Service = new (require(config[hostService.Name]))({_busList: this.#_GBusList, _node: this.#_Node});
+                                        this.#_ServicesState[hostService.Name] = hostService;
+                                    }
+
+                                    service.Service = new (require(config[service.Name]))({_busList: this.#_GBusList, _node: this.#_Node, _host: service.AdvancedOptions.host, _expBus: hostService.PrimaryBus});
+                                    this.#_ServicesState[service.Name] = service;
                                 }
+                                else {
+                                    service.Service = new (require(config[service.Name]))({_busList: this.#_GBusList, _node: this.#_Node});
+                                    this.#_ServicesState[service.Name] = service;
+                                }                                
                             }
                             catch (e) {
                                 console.log(`Failed to create service: ${service}\n${e}`);

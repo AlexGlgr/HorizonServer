@@ -87,7 +87,7 @@ class ModbusClientRTUOTCP extends ClassModbusBase_S {
         try {
             this.Queue_client_command(this.#_Sources[srcName].client, comm, (data, err) => {
                 if (err) {
-                    console.log(err.message);
+                    this.EmitEvents_logger_log({level: 'E', msg: err.message, obj: JSON.stringify(err.obj)});
                 }
                 else
                     this.EmitEvents_proxymodbusrot_msg_get({arg: [srcName, comm], value: [data]});
