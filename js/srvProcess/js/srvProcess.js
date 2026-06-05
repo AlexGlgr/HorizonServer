@@ -189,7 +189,7 @@ class ClassProcessSrv extends ClassBaseService_S {
     EmitEvents_test_connect() {
         const msg = {
             dest: 'all',
-            com: 'test-connect',
+            com: 'source-connect',
             arg: [],
             value: []
         }

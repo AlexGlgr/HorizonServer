@@ -5,7 +5,7 @@ const COM_ALL_DATA_RAW_GET = 'all-data-raw-get';
 const PRIMARY_BUS = 'modbuskcsBus';
 const PROTOCOL = 'mbkcs';
 
-EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'test-connect'];
+EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'source-connect'];
 EVENT_MODBUS_LIST = ['proxymodbuskcs-send', 'proxymodbuskcs-msg-get'];
 BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
 
@@ -35,7 +35,7 @@ class ProxyKinCony extends ClassBaseService_S {
                 _source.PrimaryBus = PRIMARY_BUS;
             });
     }
-    HandlerEvents_test_connect(_topic, _msg) {
+    HandlerEvents_source_connect(_topic, _msg) {
          Object.values(this.SourcesState)
             .filter(_source => _source.Protocol === PROTOCOL)  
             .forEach(_source =>{

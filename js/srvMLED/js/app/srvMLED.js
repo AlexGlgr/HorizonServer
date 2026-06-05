@@ -49,8 +49,7 @@ class ModbusLED extends ClassBaseService_S {
         OFF: 'OFF',
         ON: 'ON',
         WARN: 'WARN',
-        ERROR: 'ERROR',
-        WARNU: 'WARNU'
+        ERROR: 'ERROR'
     };
     #_Sources;
     #_Host;
@@ -213,14 +212,6 @@ class ModbusLED extends ClassBaseService_S {
                 comm.dat = [255 * this.#_Sources[source].Groups[grpID].blink, 0];
                 comm.id = 0x10;
                 break;
-            case 'warn2':
-                comm.reg = 102 + state.Num * 2;
-                comm.len = 1;
-
-                this.#_Sources[source].Groups[grpID].Lights[state.Num + 1] = ModbusLED.LIGHT_STATUS.WARNU;
-                comm.dat = [65280 + (255 * this.#_Sources[source].Groups[grpID].blink), 255 * this.#_Sources[source].Groups[grpID].blink];
-                comm.id = 0x10;
-                break;
             case 'error':
                 comm.reg = 102 + state.Num * 2;
                 comm.len = 1;
@@ -264,9 +255,6 @@ class ModbusLED extends ClassBaseService_S {
                     break;
                 case ModbusLED.LIGHT_STATUS.WARN:
                     regs.push(255 * _blink, 0);
-                    break;
-                case ModbusLED.LIGHT_STATUS.WARNU:
-                    regs.push(65280 + (255 * _blink), (255 * _blink));
                     break;
                 case ModbusLED.LIGHT_STATUS.ERROR:
                 default:

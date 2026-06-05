@@ -3,7 +3,7 @@ const ClassBaseService_S = require('./../../srvService/js/srvService');
 const PRIMARY_BUS = 'modbuskcsBus';
 const CONNECTION_TIMEOUT = 5000;
 
-EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'test-connect', 'all-disconnect'];
+EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'source-connect', 'all-disconnect'];
 EVENT_MODBUS_LIST = ['modbusclientkcs-send'];
 EVENT_EXPLOIT_LIST = ['modbuskcs-msg-get'];
 BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
@@ -54,6 +54,7 @@ class KinCony extends ClassBaseService_S {
             value
         };
         
+        console.log(`Tossed ${msg.com} to ${this.#_Host} on ${this.#_ExpBus}`);
         this.EmitMsg(this.#_ExpBus, msg.com, msg);
     }
 
@@ -93,7 +94,7 @@ class KinCony extends ClassBaseService_S {
                 break;
             case 0x03:
                 if (srcComm.reg == 0x11) {
-                    console.log(val.data[0]);
+                    //console.log(val.data[0]);
                     for (let i = 0; i < 0x10; i++) {
                         this.EmitEvents_proxymodbuskcs_msg_get({arg: [srcName, i], value: [((val.data[0] & (1 << i)) >> i)]});
                     }
@@ -191,7 +192,7 @@ class KinCony extends ClassBaseService_S {
      * @param {String} _topic       - топик сообщения 
      * @param {Object} _msg         - само сообщение
      */
-    HandlerEvents_test_connect(_topic, _msg) {
+    HandlerEvents_source_connect(_topic, _msg) {
         this.EmitEvents_logger_log({level: 'I', msg: 'Connection starting. . .'});
         this.Connect();
     }    
