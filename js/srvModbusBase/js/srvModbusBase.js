@@ -31,6 +31,7 @@ class ModbusExtended extends Modbus {
         super();
         this.#_CurrentDevice = -1;
         this._ServeSources = [];
+        console.log(this);
     }
 
     /**
@@ -152,6 +153,8 @@ class ModbusBase extends ClassBaseService_S {
     #_Type; // Тип протокола modbus
     #_PrimaryBus;
     #_Sources;
+    #_AddingSource;
+    #_SourceQueue;
     /**
      * @constructor
      * @description
@@ -162,6 +165,8 @@ class ModbusBase extends ClassBaseService_S {
         super({ _name: _name, _busNameList: _busNameList, _busList, _node });
         this.#_Type = _type.toUpperCase();
         this.#_PrimaryBus = _busNameList[1];
+        this.#_AddingSource = false;
+        this.#_SourceQueue = [];
         this.#_Sources = {};
 
         if (!TYPES.includes(this.#_Type)) {
@@ -497,6 +502,12 @@ class ModbusBase extends ClassBaseService_S {
      * @param {String} _conductor   - какая служба будет использовать этот источник
      */
     Add_new_source ( _source, _conductor ) {
+        if (this.#_AddingSource) {
+            this.#_SourceQueue.push([_source, _conductor]);
+            return;
+        }
+        this.#_AddingSource = true;
+
         const SourceName = _source.Name;
 
         let _client, _usedSource, _qProcessor;
@@ -508,22 +519,27 @@ class ModbusBase extends ClassBaseService_S {
         }
         else if (this.#_Type === "RTU") {
             _usedSource = Object.values(this.#_Sources).find(source => 
-                (source.Serail == _source.Serial && source.Baudrate == _source.Baudrate)
+                (source.Serial == _source.Serial && source.Baudrate == _source.Baudrate)
             );
         }
         else {
             this.EmitEvents_logger_log({level: 'E', msg: `Cannot create source ${SourceName}. Unknown type ${this.#_Type}.`, obj: _source});
+            this.#_AddingSource = false;
+            if (this.#_SourceQueue.length > 0) {
+                let [s, c] = this.#_SourceQueue.shift();
+                this.Add_new_source (s, c);
+            }
             return;
         }
 
         if (_usedSource == undefined) {
             _client = this.Initialize_modbus_client( _source );
-            _qProcessor = new AsyncQueueProcessor(_client.Execute_modbus_command.bind(_client), this.On_command_response.bind(this), 800, 10, 50);
+            _qProcessor = new AsyncQueueProcessor(_client.Execute_modbus_command.bind(_client), this.On_command_response.bind(this), 800, 10, 60);
         }
         else {
-            _client = usedSource.Modbus.client;
-            _qProcessor = usedSource.Modbus.queueProcessor;
-            _source.IsConnected = usedSource.IsConnected;
+            _client = _usedSource.Modbus.client;
+            _qProcessor = _usedSource.Modbus.queueProcessor;
+            _source.IsConnected = _usedSource.IsConnected;
             this.EmitEvents_logger_log({level: 'I', msg: `Source ${SourceName} attached to existing client.`});
             _client._ServeSources.push(SourceName);
         }
@@ -535,14 +551,29 @@ class ModbusBase extends ClassBaseService_S {
                     conductor: _conductor,
                     queueProcessor: _qProcessor
                 };
-                this.#_Sources[SourceName] = _source;                
+                this.#_Sources[SourceName] = _source;
+                this.#_AddingSource = false;
+                if (this.#_SourceQueue.length > 0) {
+                    let [s, c] = this.#_SourceQueue.shift();
+                    this.Add_new_source (s, c);
+                }
             }
             catch (e) {
                 this.EmitEvents_logger_log({level: 'E', msg: `Failed to connect to ${SourceName}`, obj: this.SourcesState});
+                this.#_AddingSource = false;
+                if (this.#_SourceQueue.length > 0) {
+                    let [s, c] = this.#_SourceQueue.shift();
+                    this.Add_new_source (s, c);
+                }
             }
         }
         else {
             this.EmitEvents_logger_log({level: 'W', msg: `Failed to connect to ${SourceName}`, obj: this.SourcesState});
+            this.#_AddingSource = false;
+            if (this.#_SourceQueue.length > 0) {
+                let [s, c] = this.#_SourceQueue.shift();
+                this.Add_new_source (s, c);
+            }
         }
     }
 

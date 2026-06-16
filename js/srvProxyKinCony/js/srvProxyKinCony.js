@@ -7,7 +7,7 @@ const PROTOCOL = 'mbkcs';
 
 EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'source-connect'];
 EVENT_MODBUS_LIST = ['proxymodbuskcs-send', 'proxymodbuskcs-msg-get'];
-BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
+BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus', 'kscexternalBus'];
 
 class ProxyKinCony extends ClassBaseService_S {
     #_SourceMapNames;
@@ -22,6 +22,7 @@ class ProxyKinCony extends ClassBaseService_S {
         this.#_SourceMapNames = [];
         this.FillEventOnList('sysBus', EVENT_SYSBUS_LIST);
         this.FillEventOnList(PRIMARY_BUS, EVENT_MODBUS_LIST);
+        this.FillEventOnList('kscexternalBus', 'external-msg-send');
         this.EmitEvents_logger_log({level: 'I', msg: 'ProxyModbusKCS initialized.'});
     }
 
@@ -61,6 +62,15 @@ class ProxyKinCony extends ClassBaseService_S {
             this.EmitEvents_modbusclientkcs_send({ arg: [source.source, source.chNum], value: [_msg.value[0]]});
         }
     }
+
+    HandlerEvents_external_msg_send(_topic, _msg) {
+        const source_name = _msg.metadata.source;
+        const source = this.#_SourceMapNames.find(_obj => _obj.Name === source_name);
+
+        if (source != undefined) {
+            this.EmitEvents_modbusclientkcs_send({ arg: [source.source, source.chNum], value: [_msg.value[0]]});
+        }
+    }
     /**
      * @method 
      * @description Вызывается при обработке события 'proxywsc_msg_get', который инициируется WSC
@@ -90,6 +100,7 @@ class ProxyKinCony extends ClassBaseService_S {
                 }]
             }
             this.EmitMsg(PRIMARY_BUS, msg.com, msg);
+            this.EmitMsg('kscexternalBus', msg.com, msg);
         }
         
         //console.log(ch_name + ': ' + _msg.value[0]);

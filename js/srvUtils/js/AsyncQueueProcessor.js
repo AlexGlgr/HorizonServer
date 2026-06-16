@@ -18,6 +18,11 @@ class AsyncQueueProcessor {
     #_maxFailCount;
     #_minIntervalMs;
 
+    #_maxSize;
+    #_size;
+    #_head;
+    #_tail;
+
     #_queue;
     #_isProcessing;
     #_isStopped;
@@ -39,7 +44,13 @@ class AsyncQueueProcessor {
         this.#_maxFailCount = _maxFailCount;
         this.#_minIntervalMs = _minIntervalMs;
 
-        this.#_queue = [];
+        this.#_maxSize = 1000;
+
+        this.#_queue = new Array(this.#_maxSize);
+        this.#_size = 0;
+        this.#_head = 0;
+        this.#_tail = 0;
+
         this.#_isProcessing = false;
         this.#_isStopped = false;
         this.#_failCounter = 0;
@@ -62,9 +73,30 @@ class AsyncQueueProcessor {
         if (this.#_isStopped) {
             return false;
         }
-        this.#_queue.push(task);
+        if (this.#_size == this.#_maxSize) {
+            this.Clear();
+            this.#_onResult(`Max queue size for ${task.source} reached: ${this.#_maxSize}. Dropping queue`, null, undefined);
+        }
+        this.#_queue[this.#_tail] = task;
+        this.#_tail = (this.#_tail + 1) % this.#_maxSize;
+        this.#_size++;
         this.Unfreeze();
         return true;
+    }
+
+    /**
+     * 
+     * @returns 
+     */
+    Dequeue() {
+        if (this.#_size === 0) return undefined; // очередь пуста
+        const task = this.#_queue[this.#_head];
+        // (опционально) удаляем ссылку на объект
+        this.#_queue[this.#_head] = undefined;
+        this.#_head = (this.#_head + 1) % this.#_maxSize;
+        this.#_size--;
+
+        return task;
     }
 
     /**
@@ -106,42 +138,44 @@ class AsyncQueueProcessor {
 
         while (!this.#_isStopped) {
             // Если очередь пуста – засыпаем до добавления новой задачи
-            if (this.#_queue.length === 0) {
+            if (this.#_size === 0) {
                 this.#_waitPromise = new Promise(resolve => {
                     this.#_waitResolve = resolve;
                 });
                 await this.#_waitPromise;
                 // При пробуждении сбрасываем lastStartTime, чтобы интервал не применялся
-                lastStartTime = 0;
+                //lastStartTime = 0;
                 continue;
             }
 
-            const task = this.#_queue.shift();
+            const task = this.Dequeue();
 
             // Проверяем лимит ошибок
             if (this.#_failCounter >= this.#_maxFailCount) {
                 this.#_isStopped = true;
                 this.#_onResult(1, null, task);
                 // Отклоняем оставшиеся задачи
-                while (this.#_queue.length) {
-                    const task = this.#_queue.shift();
-                }
+                this.Clear();
                 this.Unfreeze();
                 break;
             }
 
             // Вычисляем задержку до начала следующей задачи
-            if (lastStartTime > 0 && this.#_minIntervalMs > 0) {
+            /*if (lastStartTime > 0 && this.#_minIntervalMs > 0) {
                 const now = Date.now();
                 const elapsed = now - lastStartTime;
                 if (elapsed < this.#_minIntervalMs) {
                     const delay = this.#_minIntervalMs - elapsed;
-                    await this.Sleep(delay);
+                    await this.Sleep(15);
                 }
-            }
+                console.log(Date.now() - now);
+            }*/
             
-            const startTime = Date.now();
-            lastStartTime = startTime;
+            /*const startTime = Date.now();
+            lastStartTime = startTime;*/
+
+            //console.log(Date.now() - lastStartTime);
+            //lastStartTime = Date.now();
 
             try {
                 const result = await this.Execute_with_timeout(task);
@@ -151,6 +185,8 @@ class AsyncQueueProcessor {
                 this.#_failCounter++;
                 this.#_onResult(err, null, task);
             }
+
+            await this.Sleep(15);
         }
 
         this.#_isProcessing = false;
@@ -188,6 +224,16 @@ class AsyncQueueProcessor {
      */
     Sleep( _ms ) {
         return new Promise(resolve => setTimeout(resolve, _ms));
+    }
+
+    /**
+     * 
+     */
+    Clear() {
+        this.#_size = 0;
+        this.#_head = 0;
+        this.#_tail = 0;
+        this.#_queue.fill(undefined);
     }
 }
 

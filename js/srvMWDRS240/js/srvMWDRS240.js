@@ -3,7 +3,7 @@ const ClassBaseService_S = require('./../../srvService/js/srvService');
 const PRIMARY_BUS = 'modbusdrsBus';
 const CONNECTION_TIMEOUT = 5000;
 
-EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'test-connect', 'all-disconnect'];
+EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'source-connect', 'all-disconnect'];
 EVENT_MODBUS_LIST = ['modbusclientdrs-send'];
 EVENT_EXPLOIT_LIST = ['modbusdrs-msg-get'];
 BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
@@ -33,6 +33,10 @@ REG_IN = {
     'holdRegs': 0x10
 };
 
+/**
+ * @class
+ * @description Класс предназначен для работы с регистрами ИП DRS240
+ */
 class MW_DRS240 extends ClassBaseService_S {
     static SCALE_FACTORS = SCALE_FACTORS;
     #_Sources;
@@ -40,8 +44,7 @@ class MW_DRS240 extends ClassBaseService_S {
     #_ExpBus;
     /**
      * @constructor
-     * @description
-     * Конструктор класса логгера
+     * @description Конструктор класса
      * @param {[ClassBus_S]} _busList - список шин, созданных в проекте
      */
     constructor({ _busList, _node, _host, _expBus }) {
@@ -55,6 +58,11 @@ class MW_DRS240 extends ClassBaseService_S {
         this.EmitEvents_logger_log({level: 'I', msg: 'ModbusDRS initialized.'});
     }
 
+    /**
+     * @method
+     * @description Генерирует событие proxymodbusdrs-msg-get
+     * @param {Object} _msg         - сообщение для отправки по шине modbusdrsBus
+     */
     EmitEvents_proxymodbusdrs_msg_get({arg, value}) {
         const msg = {
             dest: 'proxymodbusdrs',
@@ -67,8 +75,8 @@ class MW_DRS240 extends ClassBaseService_S {
 
     /**
      * @method
-     * @description Запускает событие proxymodbus-msg-get
-     * @returns msg         - отправляемое сообщение
+     * @description Генерирует событие modbus-source-toss
+     * @param {Object} _msg         - сообщение для отправки по шине #_ExpBus
      */
     EmitEvents_modbusdrs_source_toss({arg, value}) {
         const msg = {
@@ -83,8 +91,8 @@ class MW_DRS240 extends ClassBaseService_S {
 
     /**
      * @method
-     * @description Отправляет команду на испольнение в modbusclient
-     * @param {*} param0 
+     * @description Генерирует событие enqueue-command
+     * @param {Object} _msg         - сообщение для отправки по шине #_ExpBus
      */
     EmitEvents_enqueue_command({arg, value}) {
         const msg = {
@@ -97,13 +105,19 @@ class MW_DRS240 extends ClassBaseService_S {
         this.EmitMsg(this.#_ExpBus, msg.com, msg);
     }
 
+    /**
+     * @method
+     * @description Обрабатывает событие modbusdrs-msg-get
+     * @param {String} _topic       - имя топика
+     * @param {Object} _msg         - полученное сообщение по шине #_ExpBus
+     */
     HandlerEvents_modbusdrs_msg_get( _topic, _msg ){
         const srcName = _msg.arg[0];
         const srcComm = _msg.arg[1];
         const val = _msg.value[0];
 
         switch (srcComm.reg) {
-            case 0xC0:
+            case 0xC0:// регистр с множителями данных
                 this.#_Sources[srcName].Scales = {
                     I_OUT: MW_DRS240.SCALE_FACTORS[(val.data[0] & 0xF000) >> 12],
                     V_OUT: MW_DRS240.SCALE_FACTORS[(val.data[0] & 0x0F00) >> 8],
@@ -114,11 +128,11 @@ class MW_DRS240 extends ClassBaseService_S {
                     I_IN: MW_DRS240.SCALE_FACTORS[(val.data[1] & 0x00F0) >> 4]
                 }
                 break;
-            case 0x60:
+            case 0x60:// Выходные напряжение и сила тока
                 this.EmitEvents_proxymodbusdrs_msg_get({arg: [srcName, 0], value: [val.data[0] * this.#_Sources[srcName].Scales.V_OUT]});
                 this.EmitEvents_proxymodbusdrs_msg_get({arg: [srcName, 1], value: [val.data[1] * this.#_Sources[srcName].Scales.I_OUT]});
                 break;
-            case 0x40:
+            case 0x40:// флаги состояния
                 const status = {
                     FAN_FAIL: val.data[0] & 1,
                     INNER_TEMP: (val.data[0] & 2) >> 1,
@@ -139,11 +153,13 @@ class MW_DRS240 extends ClassBaseService_S {
     HandlerEvents_modbusclientdrs_send( _topic, _msg ){
         const source = _msg.arg[0];
         const grpID = _msg.arg[1];
-        const [state] = _msg.value[0].value;
-
-        
+        const [state] = _msg.value[0].value;        
     }
 
+    /**
+     * @method
+     * @description Посылает команду на чтение регистров скалирования
+     */
     UpdateScalingStatus() {
         Object.entries(this.#_Sources).forEach(source => {
             let comm = {
@@ -157,6 +173,10 @@ class MW_DRS240 extends ClassBaseService_S {
         })
     }
 
+    /**
+     * @method
+     * @description Начинает опрос групп регистров показаний напряжения и тока, а также состояний ИП
+     */
     Start() {
         Object.entries(this.#_Sources).forEach(([name, source]) => {
             if (source.Groups != undefined && source.Groups.length > 0) {                
@@ -187,8 +207,8 @@ class MW_DRS240 extends ClassBaseService_S {
      * @param {String} _topic       - топик сообщения 
      * @param {Object} _msg         - само сообщение
      */
-    HandlerEvents_test_connect(_topic, _msg) {
-        this.EmitEvents_logger_log({level: 'I', msg: 'Connection starting. . .'});
+    HandlerEvents_source_connect(_topic, _msg) {
+        this.EmitEvents_logger_log({level: 'I', msg: 'DRS240: Connection starting. . .'});
         this.Connect();
     }    
 
@@ -199,8 +219,7 @@ class MW_DRS240 extends ClassBaseService_S {
     Connect() {
         let sourcesCount = 0;
         let tOut = setTimeout(() => {
-            this.EmitEvents_logger_log({level: 'I', msg: `Connections done!`, obj: this.SourcesState});
-            console.log(`Connections done by DRS!`);
+            this.EmitEvents_logger_log({level: 'I', msg: `Connections done by DRS!`, obj: this.#_Sources});
             this.UpdateScalingStatus();
             this.Start();
         }, CONNECTION_TIMEOUT);
