@@ -3,7 +3,7 @@ const ClassBaseService_S = require('./../../srvService/js/srvService');
 const PRIMARY_BUS = 'modbusnlsBus';
 const CONNECTION_TIMEOUT = 5000;
 
-EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'test-connect', 'all-disconnect'];
+EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'source-connect', 'all-disconnect'];
 EVENT_MODBUS_LIST = ['modbusclientnls-send'];
 EVENT_EXPLOIT_LIST = ['modbusnls-msg-get'];
 BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
@@ -33,6 +33,10 @@ BAUD_RATES = {
     0x0A: 115200
 };
 
+/**
+ * @class
+ * @description Класс предназначен для работы с регистрами ИП Reallab
+ */
 class RL_NLS extends ClassBaseService_S {
     #_Sources;
     #_Host;
@@ -40,7 +44,7 @@ class RL_NLS extends ClassBaseService_S {
     /**
      * @constructor
      * @description
-     * Конструктор класса логгера
+     * Конструктор класса
      * @param {[ClassBus_S]} _busList - список шин, созданных в проекте
      */
     constructor({ _busList, _node, _host, _expBus }) {
@@ -54,6 +58,11 @@ class RL_NLS extends ClassBaseService_S {
         this.EmitEvents_logger_log({level: 'I', msg: 'ModbusNLS initialized.'});
     }
 
+    /**
+     * @method
+     * @description Генерирует событие proxymodbusnls-msg-get
+     * @param {Object} _msg         - сообщение для отправки по шине modbusdrsBus
+     */
     EmitEvents_proxymodbusnls_msg_get({arg, value}) {
         const msg = {
             dest: 'proxymodbusnls',
@@ -66,8 +75,8 @@ class RL_NLS extends ClassBaseService_S {
 
     /**
      * @method
-     * @description Запускает событие proxymodbus-msg-get
-     * @returns msg         - отправляемое сообщение
+     * @description Генерирует событие modbus-source-toss
+     * @param {Object} _msg         - сообщение для отправки по шине #_ExpBus
      */
     EmitEvents_modbusnls_source_toss({arg, value}) {
         const msg = {
@@ -82,8 +91,8 @@ class RL_NLS extends ClassBaseService_S {
 
     /**
      * @method
-     * @description Отправляет команду на испольнение в modbusclient
-     * @param {*} param0 
+     * @description Генерирует событие enqueue-command
+     * @param {Object} _msg         - сообщение для отправки по шине #_ExpBus
      */
     EmitEvents_enqueue_command({arg, value}) {
         const msg = {
@@ -96,6 +105,12 @@ class RL_NLS extends ClassBaseService_S {
         this.EmitMsg(this.#_ExpBus, msg.com, msg);
     }
 
+    /**
+     * @method
+     * @description Обрабатывает событие modbusnls-msg-get
+     * @param {String} _topic       - имя топика
+     * @param {Object} _msg         - полученное сообщение по шине #_ExpBus
+     */
     HandlerEvents_modbusnls_msg_get( _topic, _msg ){
         const srcName = _msg.arg[0];
         const srcComm = _msg.arg[1];
@@ -162,6 +177,10 @@ class RL_NLS extends ClassBaseService_S {
         
     }
 
+    /**
+     * @method
+     * @description Начинает опрос групп регистров показаний напряжения и тока, а также состояний ИП
+     */    
     Start( _name, _source ) {        
         if (_source.Groups != undefined && _source.Groups.length > 0) {                
             _source.Groups.forEach((group) => {
@@ -211,6 +230,12 @@ class RL_NLS extends ClassBaseService_S {
         }
     }
 
+    /**
+     * @method
+     * @description Обновляет статичные каналы ИП
+     * @param {String} _name        - имя источника 
+     * @param {Object} _source      - объект источника
+     */
     UpdateStats( _name, _source ) {        
         _source.Stats = {};
         let comm1 = {
@@ -254,8 +279,8 @@ class RL_NLS extends ClassBaseService_S {
      * @param {String} _topic       - топик сообщения 
      * @param {Object} _msg         - само сообщение
      */
-    HandlerEvents_test_connect(_topic, _msg) {
-        this.EmitEvents_logger_log({level: 'I', msg: 'Connection starting. . .'});
+    HandlerEvents_source_connect(_topic, _msg) {
+        this.EmitEvents_logger_log({level: 'I', msg: 'Reallab NLS: Connection starting. . .'});
         this.Connect();
     }    
 
