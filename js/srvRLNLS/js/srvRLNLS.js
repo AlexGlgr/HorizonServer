@@ -297,12 +297,8 @@ class RL_NLS extends ClassBaseService_S {
                     this.UpdateStats(name, source);
                     this.Start(name, source);
                 }
-                else {
-                    console.log(`${name} unconnected`);
-                }
             });
-            this.EmitEvents_logger_log({level: 'I', msg: `Connections done!`, obj: this.SourcesState});
-            console.log(`Connections done by NLS!`);            
+            this.EmitEvents_logger_log({level: 'I', msg: `Connections done by NLS!`, obj: this.SourcesState});           
         }, CONNECTION_TIMEOUT);
         Object.values(this.SourcesState)
             .filter(source => source.Protocol === PROTOCOL && !source.IsConnected && source.CheckProcess && source.Status === 'active')
