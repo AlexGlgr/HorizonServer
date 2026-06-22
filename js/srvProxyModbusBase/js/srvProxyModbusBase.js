@@ -116,19 +116,35 @@ class ProxyModbusBase extends ClassBaseService_S {
      */
     Modbus_get_message ( _topic, _msg ) {
         const source_name = _msg.arg[0];
-        const ch_name = this.#_SourceMapNames.find(obj => obj.chNum == _msg.arg[1] && obj.source == source_name).Name;
+        const ch_num = _msg.arg[1].reg;
 
-        const msg = {
-                dest: ch_name,
-                com: COM_ALL_DATA_RAW_GET,
-                arg: [source_name],
-                value: [{
-                    com: COM_ALL_DATA_RAW_GET,
-                    arg: [ch_name],
-                    value: [_msg.value[0]]
-                }]
-            }
-        this.EmitMsg(this.#_PrimaryBus, msg.com, msg);
+        if (source_name != undefined) {
+            const data = _msg.value[0];            
+
+            data.forEach(d => {
+                const ch = this.#_SourceMapNames.find(obj => obj.chNum == ch_num && obj.source == source_name);
+
+                if (ch != undefined) {
+                    const ch_name = ch.Name;
+
+                    const msg = {
+                        dest: ch_name,
+                        com: COM_ALL_DATA_RAW_GET,
+                        arg: [source_name],
+                        value: [{
+                            com: COM_ALL_DATA_RAW_GET,
+                            arg: [ch_name],
+                            value: [d]
+                        }]
+                    }
+                    this.EmitMsg(this.#_PrimaryBus, msg.com, msg);
+                }
+                ch_num++;
+            })
+        }
+        else {
+            this.EmitEvents_logger_log({level: 'E', msg: `Cannot find ${source_name}`});
+        }        
     }
 
 }

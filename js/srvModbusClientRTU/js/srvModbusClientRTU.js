@@ -8,21 +8,20 @@ BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
 const PROXY = {dest: 'proxymodbusrtu', com: 'proxymodbusrtu-msg-get'};
 const PROTOCOL = 'modbusrtu';
 const THIS_NAME = 'modbusclientrtu';
-const DEFAULT_RATE = 9600;
 
 
 class ModbusClientRTU extends ClassModbusBase_S {
     /**
      * @constructor
      * @description
-     * Конструктор класса логгера
+     * Конструктор класса
      * @param {[ClassBus_S]} _busList - список шин, созданных в проекте
      */
     constructor({ _busList, _node }) {
         super({ _name: THIS_NAME, _busNameList: BUS_NAMES_LIST, _busList, _node, _type: 'RTU' });      
     }
     
-     /**
+    /**
      * @method
      * @description Обработчик события, запускает отправку сообщения по указанному сокету
      * @param {String} _topic       - топик сообщения 
@@ -44,7 +43,7 @@ class ModbusClientRTU extends ClassModbusBase_S {
     Connect() {
         let sourcesCount = 0;
         let tOut = setTimeout(() => {
-            this.EmitEvents_logger_log({level: 'I', msg: `Connections done!`, obj: this.SourcesState});
+            this.EmitEvents_logger_log({level: 'I', msg: `Connections done by modbusRTU!`, obj: this.SourcesState});
             this.Start();
         }, CONNECTION_TIMEOUT);
         Object.values(this.SourcesState)
