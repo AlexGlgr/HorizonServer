@@ -186,7 +186,7 @@ class ClassProcessSrv extends ClassBaseService_S {
      * @description Запускает событие all_connect
      * @returns msg
      */
-    EmitEvents_test_connect() {
+    EmitEvents_source_connect() {
         const msg = {
             dest: 'all',
             com: 'source-connect',
@@ -238,7 +238,7 @@ class ClassProcessSrv extends ClassBaseService_S {
                     }
                     if (service.Importance === 'auxilary' && service.Protocol === 'sys') {
                         try {
-                            service.Service = new (require(config[service.Name]))({_busList: this.#_GBusList, _node: this.#_Node}, service.AdvancedOptions);
+                            service.Service = new (require(config[service.Name]))({_busList: this.#_GBusList, _primaryBus: service.PrimaryBus, _node: this.#_Node}, service.AdvancedOptions);
                             this.#_ServicesState[service.Name] = service;
                         }
                         catch (e) {
@@ -251,6 +251,7 @@ class ClassProcessSrv extends ClassBaseService_S {
                 }
             })
 
+            // Заполняем источники
             // Заполняем источники
             _dbSources.forEach(source => {
                 try {
@@ -268,7 +269,7 @@ class ClassProcessSrv extends ClassBaseService_S {
                                         this.CreateBus(hostService.PrimaryBus);
                                     }
                                     if (this.#_ServicesState[hostService.Name] == undefined) {
-                                        hostService.Service = new (require(config[hostService.Name]))({_busList: this.#_GBusList, _node: this.#_Node});
+                                        hostService.Service = new (require(config[hostService.Name]))({_busList: this.#_GBusList, _primaryBus: hostService.PrimaryBus, _node: this.#_Node});
                                         this.#_ServicesState[hostService.Name] = hostService;
                                     }
 
@@ -276,7 +277,7 @@ class ClassProcessSrv extends ClassBaseService_S {
                                     this.#_ServicesState[service.Name] = service;
                                 }
                                 else {
-                                    service.Service = new (require(config[service.Name]))({_busList: this.#_GBusList, _node: this.#_Node});
+                                    service.Service = new (require(config[service.Name]))({_busList: this.#_GBusList, _primaryBus: service.PrimaryBus, _node: this.#_Node});
                                     this.#_ServicesState[service.Name] = service;
                                 }                                
                             }
@@ -291,7 +292,7 @@ class ClassProcessSrv extends ClassBaseService_S {
                 catch (e) {
                     console.log(`_dbSources: ${e}`);
                 }
-            })
+            });
         
             // Создаём каналы
             _dbChannels.forEach(channel => {
@@ -328,7 +329,7 @@ class ClassProcessSrv extends ClassBaseService_S {
                     this.EmitEvents_logger_log({level: 'I', msg: 'System startup finished!', obj: {services: srvList}});
                     /* debugstart */
                     console.log("System startup finished!");
-                    this.EmitEvents_test_connect();
+                    this.EmitEvents_source_connect();
                     /* debugend */
                 }, PROCESS_CHECK_TIMEOUT);
             }, PROCESS_BUS_TIMEOUT);
