@@ -74,8 +74,10 @@ class ProxyMWDRS240 extends ClassBaseService_S {
         //const [ source_name ] = _msg.arg;
         //const hash = this.#GetMsgHash(msg_from_plc.com, source_name);
         const source_name = _msg.arg[0];
-        try {
-            const ch_name = this.#_SourceMapNames.find(obj => obj.chNum == _msg.arg[1] && obj.source == source_name).Name;
+        const channel = this.#_SourceMapNames.find(obj => obj.chNum == _msg.arg[1] && obj.source == source_name);
+
+        if (channel != undefined) {
+            const ch_name = channel.Name;
 
             const msg = {
                 dest: ch_name,
@@ -87,12 +89,10 @@ class ProxyMWDRS240 extends ClassBaseService_S {
                     value: [_msg.value[0]]
                 }]
             }
+            //console.log(ch_name + ': ' + _msg.value[0]);
             this.EmitMsg(PRIMARY_BUS, msg.com, msg);
         }
-        catch (e) {
-            this.EmitEvents_logger_log({level: 'E', msg: `ProxyMWDRS: ${e.message}`});
-        }
-        //console.log(source_name + ': ' + _msg.value[0]);
+        //
     }
     /**
      * @method

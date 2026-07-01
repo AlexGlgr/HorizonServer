@@ -298,7 +298,7 @@ class RL_NLS extends ClassBaseService_S {
                     this.Start(name, source);
                 }
             });
-            this.EmitEvents_logger_log({level: 'I', msg: `Connections done by NLS!`, obj: this.SourcesState});           
+            this.EmitEvents_logger_log({level: 'I', msg: `Connections done by NLS!`});           
         }, CONNECTION_TIMEOUT);
         Object.values(this.SourcesState)
             .filter(source => source.Protocol === PROTOCOL && !source.IsConnected && source.CheckProcess && source.Status === 'active')
@@ -309,7 +309,7 @@ class RL_NLS extends ClassBaseService_S {
         });
         if (sourcesCount == 0) {
             clearTimeout(tOut);
-            this.EmitEvents_logger_log({level: 'I', msg: `No unconnected sources found!`, obj: this.SourcesState});
+            this.EmitEvents_logger_log({level: 'I', msg: `No unconnected sources found!`});
         }
     }
 }

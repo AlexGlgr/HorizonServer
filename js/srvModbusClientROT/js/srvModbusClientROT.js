@@ -43,18 +43,18 @@ class ModbusClientRTUOTCP extends ClassModbusBase_S {
     Connect() {
         let sourcesCount = 0;
         let tOut = setTimeout(() => {
-            this.EmitEvents_logger_log({level: 'I', msg: `Connections done by modbusROT!`, obj: this.SourcesState});
+            this.EmitEvents_logger_log({level: 'I', msg: `Connections done by modbusROT!`});
             this.Start();
         }, CONNECTION_TIMEOUT);
         Object.values(this.SourcesState)
             .filter(source => source.Protocol === PROTOCOL && !source.IsConnected && source.CheckProcess && source.Status === 'active')
             .forEach((source) => {
-                this.Add_new_source(source,PROXY);
+                this.Add_new_source(source, {dest: 'proxymodbusrot', com: 'proxymodbusrot-msg-get'});
                 sourcesCount++;
         });
         if (sourcesCount == 0) {
             clearTimeout(tOut);
-            this.EmitEvents_logger_log({level: 'I', msg: `No unconnected sources found!`, obj: this.SourcesState});
+            this.EmitEvents_logger_log({level: 'I', msg: `No unconnected sources found!`});
         }
     }
 }

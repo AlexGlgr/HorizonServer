@@ -5,7 +5,7 @@ const COM_ALL_DATA_RAW_GET = 'all-data-raw-get';
 const PRIMARY_BUS = 'modbusnlsBus';
 const PROTOCOL = 'mbnls';
 
-EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'test-connect'];
+EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'source-connect'];
 EVENT_MODBUS_LIST = ['proxymodbusnls-send', 'proxymodbusnls-msg-get'];
 BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
 
@@ -35,7 +35,7 @@ class ProxyRLNLS extends ClassBaseService_S {
                 _source.PrimaryBus = PRIMARY_BUS;
             });
     }
-    HandlerEvents_test_connect(_topic, _msg) {
+    HandlerEvents_source_connect(_topic, _msg) {
          Object.values(this.SourcesState)
             .filter(_source => _source.Protocol === PROTOCOL)  
             .forEach(_source =>{
@@ -74,9 +74,11 @@ class ProxyRLNLS extends ClassBaseService_S {
         //const [ source_name ] = _msg.arg;
         //const hash = this.#GetMsgHash(msg_from_plc.com, source_name);
         const source_name = _msg.arg[0];
-        const ch_name = this.#_SourceMapNames.find(obj => obj.chNum == _msg.arg[1] && obj.source == source_name).Name;
+        const channel = this.#_SourceMapNames.find(obj => obj.chNum == _msg.arg[1] && obj.source == source_name);
 
-        const msg = {
+        if (channel != undefined) {
+            const ch_name = channel.Name;
+            const msg = {
             dest: ch_name,
             com: COM_ALL_DATA_RAW_GET,
             arg: [source_name],
@@ -84,9 +86,11 @@ class ProxyRLNLS extends ClassBaseService_S {
                 com: COM_ALL_DATA_RAW_GET,
                 arg: [ch_name],
                 value: [_msg.value[0]]
-            }]
+                }]
+            }
+            this.EmitMsg(PRIMARY_BUS, msg.com, msg);
         }
-        this.EmitMsg(PRIMARY_BUS, msg.com, msg);
+        
         //console.log(ch_name + ': ' + _msg.value[0]);
     }
     /**

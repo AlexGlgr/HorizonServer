@@ -3,7 +3,6 @@ const AsyncQueueProcessor = require('./../../srvUtils/js/AsyncQueueProcessor');
 const Modbus = require('modbus-serial');
 
 EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'source-connect', 'all-disconnect'];
-EVENT_MODBUS_LIST = ['', 'modbus-source-toss', 'enqueue-command'];
 const TYPES = ['RTU','TCP','RTUOTCP'];
 const SHORT_TYPES = ['rtu', 'tcp', 'rot'];
 const DEFAULT_PORT = 502;
@@ -31,7 +30,6 @@ class ModbusExtended extends Modbus {
         super();
         this.#_CurrentDevice = -1;
         this._ServeSources = [];
-        console.log(this);
     }
 
     /**
@@ -42,11 +40,11 @@ class ModbusExtended extends Modbus {
      */
     Execute_modbus_command( _comm )
     {
-        const _id  = _comm.mbID ?? 1;
-        const _com = _comm.id ?? 0x03;
-        const _reg = _comm.reg ?? 0;
-        const _dat = _comm.dat ?? 0;
-        const _len = _comm.len ?? 1;
+        let _id  = _comm.mbID ?? 1;
+        let _com = _comm.id ?? 0x03;
+        let _reg = _comm.reg ?? 0;
+        let _dat = _comm.dat ?? 0;
+        let _len = _comm.len ?? 1;
 
         if (this.#_CurrentDevice != _id) {
             this.setID( _id );
@@ -174,10 +172,10 @@ class ModbusBase extends ClassBaseService_S {
             this.#_Type = "TCP";
         };
 
-        EVENT_MODBUS_LIST[0] = `modbusclient${SHORT_TYPES[TYPES.indexOf(this.#_Type)]}-send`;
+        const event_list = [`modbusclient${SHORT_TYPES[TYPES.indexOf(this.#_Type)]}-send`, 'modbus-source-toss', 'enqueue-command'];
 
         this.FillEventOnList ('sysBus', EVENT_SYSBUS_LIST);
-        this.FillEventOnList (this.#_PrimaryBus, EVENT_MODBUS_LIST);
+        this.FillEventOnList (this.#_PrimaryBus, event_list);
         this.EmitEvents_logger_log({level: 'I', msg: `Modbus Client ${this.#_Type} initialized.`});
     }
 
@@ -269,6 +267,7 @@ class ModbusBase extends ClassBaseService_S {
             arg,
             value
         };
+
         this.EmitMsg(this.#_PrimaryBus, msg.com, msg);
     }
 
@@ -480,8 +479,13 @@ class ModbusBase extends ClassBaseService_S {
             let fresh = this.Initialize_modbus_client(this.#_Sources[_sources[0]]);
 
             if (fresh != undefined) {
-                clearInterval(retry) ;
-                _qProcessor = new AsyncQueueProcessor(fresh.Execute_modbus_command.bind(fresh), this.On_command_response.bind(this), 800, 10, 50);
+                clearInterval(retry);
+                let delay = 0;
+                if (this.#_Type == "RTU") {
+                    delay = 15;
+                }
+
+                _qProcessor = new AsyncQueueProcessor(fresh.Execute_modbus_command.bind(fresh), this.On_command_response.bind(this), 200, 10, delay);
                 fresh._ServeSources = _sources;
 
                 fresh._ServeSources.forEach(source => {
@@ -559,7 +563,7 @@ class ModbusBase extends ClassBaseService_S {
                 }
             }
             catch (e) {
-                this.EmitEvents_logger_log({level: 'E', msg: `Failed to connect to ${SourceName}`, obj: this.SourcesState});
+                this.EmitEvents_logger_log({level: 'E', msg: `Failed to connect to ${SourceName}`});
                 this.#_AddingSource = false;
                 if (this.#_SourceQueue.length > 0) {
                     let [s, c] = this.#_SourceQueue.shift();
@@ -568,7 +572,7 @@ class ModbusBase extends ClassBaseService_S {
             }
         }
         else {
-            this.EmitEvents_logger_log({level: 'W', msg: `Failed to connect to ${SourceName}`, obj: this.SourcesState});
+            this.EmitEvents_logger_log({level: 'W', msg: `Failed to connect to ${SourceName}`});
             this.#_AddingSource = false;
             if (this.#_SourceQueue.length > 0) {
                 let [s, c] = this.#_SourceQueue.shift();
@@ -589,25 +593,27 @@ class ModbusBase extends ClassBaseService_S {
             'inputReg': 0x04
         };
         Object.entries(this.#_Sources).forEach(([name, source]) => {
-            if (source.Groups != undefined && source.Groups.length > 0) {
-                source.Groups.forEach((group) => {
-                    if (group.beh == 'Sensor') {
-                        group.comID = Registers[group.type ?? 2];
-                        group.intervalObject = setInterval(() => {
-                            let comm = {
-                                id: group.comID,
-                                reg: group.startReg ?? 1,
-                                len: group.numRegs ?? 1,
-                                dat: 0,
-                                mbID: group.mbID ?? 1
-                            }
+            if (source.Protocol == `modbus${SHORT_TYPES[TYPES.indexOf(this.#_Type)]}`) {
+                if (source.Groups != undefined && source.Groups.length > 0) {
+                    source.Groups.forEach((group) => {
+                        if (group.beh == 'Sensor') {
+                            group.comID = Registers[group.type ?? 2];
+                            group.intervalObject = setInterval(() => {
+                                let comm = {
+                                    id: group.comID,
+                                    reg: group.startReg ?? 1,
+                                    len: group.numRegs ?? 1,
+                                    dat: 0,
+                                    mbID: group.mbID ?? 1
+                                }
 
-                            if (source.IsConnected) {
-                                this.Queue_client_command(name, comm);
-                            }
-                        },group.interval);
-                    }                   
-                })
+                                if (source.IsConnected) {
+                                    this.Queue_client_command(name, comm);
+                                }
+                            },group.interval);
+                        }                   
+                    })
+                }
             }
         })
     }
@@ -628,18 +634,21 @@ class ModbusBase extends ClassBaseService_S {
      * @returns 
      */
     Queue_client_command( _name, _comm ) {
-        const source = this.#_Sources[_name];
+        let source = this.#_Sources[_name];
         
         if (!source.IsConnected) {
-            this.EmitEvents_logger_log({level: 'E', msg: `Cannot queue command to ${_name}. Source disconnected`, obj: source});
+            this.EmitEvents_logger_log({level: 'E', msg: `Cannot queue command to ${_name}. Source disconnected`});
             return;
         }
 
         if (source) {
-            const queueProcessor = source.Modbus.queueProcessor;
+            let queueProcessor = source.Modbus.queueProcessor;
+            
+            /*if (source.Port == 10001)
+                console.log(queueProcessor.Size);*/
 
             if (queueProcessor) {
-                const task = {
+                let task = {
                     comm: _comm,
                     source: _name
                 };
@@ -651,7 +660,7 @@ class ModbusBase extends ClassBaseService_S {
                 }
             }
             else {
-                this.EmitEvents_logger_log({level: 'E', msg: `Queue processor is not defined for ${_name}`, obj: source});
+                this.EmitEvents_logger_log({level: 'E', msg: `Queue processor is not defined for ${_name}`});
             }
         }
         else {

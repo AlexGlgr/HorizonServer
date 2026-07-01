@@ -44,7 +44,7 @@ class AsyncQueueProcessor {
         this.#_maxFailCount = _maxFailCount;
         this.#_minIntervalMs = _minIntervalMs;
 
-        this.#_maxSize = 1000;
+        this.#_maxSize = 200;
 
         this.#_queue = new Array(this.#_maxSize);
         this.#_size = 0;
@@ -62,6 +62,13 @@ class AsyncQueueProcessor {
         this.Start();
     }
 
+    /**
+     * @getter
+     * @description Тип соединения modbus
+     */
+    get Size() {
+        return this.#_size;
+    }
 
     /**
      * @method
@@ -73,8 +80,9 @@ class AsyncQueueProcessor {
         if (this.#_isStopped) {
             return false;
         }
-        if (this.#_size == this.#_maxSize) {
+        if (this.#_size >= this.#_maxSize) {
             this.Clear();
+            console.log(`Max queue size for ${task.source} reached: ${this.#_maxSize}. Dropping queue`);
             this.#_onResult(`Max queue size for ${task.source} reached: ${this.#_maxSize}. Dropping queue`, null, undefined);
         }
         this.#_queue[this.#_tail] = task;
@@ -90,7 +98,7 @@ class AsyncQueueProcessor {
      */
     Dequeue() {
         if (this.#_size === 0) return undefined; // очередь пуста
-        const task = this.#_queue[this.#_head];
+        let task = this.#_queue[this.#_head];
         // (опционально) удаляем ссылку на объект
         this.#_queue[this.#_head] = undefined;
         this.#_head = (this.#_head + 1) % this.#_maxSize;
@@ -148,7 +156,7 @@ class AsyncQueueProcessor {
                 continue;
             }
 
-            const task = this.Dequeue();
+            let task = this.Dequeue();
 
             // Проверяем лимит ошибок
             if (this.#_failCounter >= this.#_maxFailCount) {
@@ -178,7 +186,7 @@ class AsyncQueueProcessor {
             //lastStartTime = Date.now();
 
             try {
-                const result = await this.Execute_with_timeout(task);
+                let result = await this.Execute_with_timeout(task);
                 this.#_failCounter = 0;
                 this.#_onResult(null, result, task);
             } catch (err) {

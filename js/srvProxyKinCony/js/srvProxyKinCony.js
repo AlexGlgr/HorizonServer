@@ -7,7 +7,7 @@ const PROTOCOL = 'mbkcs';
 
 EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'source-connect'];
 EVENT_MODBUS_LIST = ['proxymodbuskcs-send', 'proxymodbuskcs-msg-get'];
-BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus', 'kscexternalBus'];
+BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
 
 class ProxyKinCony extends ClassBaseService_S {
     #_SourceMapNames;
@@ -22,7 +22,6 @@ class ProxyKinCony extends ClassBaseService_S {
         this.#_SourceMapNames = [];
         this.FillEventOnList('sysBus', EVENT_SYSBUS_LIST);
         this.FillEventOnList(PRIMARY_BUS, EVENT_MODBUS_LIST);
-        this.FillEventOnList('kscexternalBus', 'external-msg-send');
         this.EmitEvents_logger_log({level: 'I', msg: 'ProxyModbusKCS initialized.'});
     }
 
@@ -78,16 +77,12 @@ class ProxyKinCony extends ClassBaseService_S {
      * @param {ClassBusMsg_S} _msg - сообщение
      */
     HandlerEvents_proxymodbuskcs_msg_get(_topic, _msg) {
-        // извлечение "ядра" сообщения, составленного службой контроллера
-        // LHP.Unpack
-        //const msg_from_plc = JSON.parse(_msg.value[0] ?? '');
-        //const [ source_name ] = _msg.arg;
-        //const hash = this.#GetMsgHash(msg_from_plc.com, source_name);
         const source_name = _msg.arg[0];
-        const source = this.#_SourceMapNames.find(obj => obj.chNum == _msg.arg[1] && obj.source == source_name);
 
-        if (source != undefined) {
-            const ch_name = source.Name;
+        const channel = this.#_SourceMapNames.find(obj => obj.chNum == _msg.arg[1] && obj.source == source_name);
+
+        if (channel != undefined) {
+            const ch_name = channel.Name;
 
             const msg = {
                 dest: ch_name,
@@ -100,10 +95,7 @@ class ProxyKinCony extends ClassBaseService_S {
                 }]
             }
             this.EmitMsg(PRIMARY_BUS, msg.com, msg);
-            this.EmitMsg('kscexternalBus', msg.com, msg);
         }
-        
-        //console.log(ch_name + ': ' + _msg.value[0]);
     }
     /**
      * @method

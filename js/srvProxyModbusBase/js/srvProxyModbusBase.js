@@ -116,12 +116,12 @@ class ProxyModbusBase extends ClassBaseService_S {
      */
     Modbus_get_message ( _topic, _msg ) {
         const source_name = _msg.arg[0];
-        const ch_num = _msg.arg[1].reg;
+        let ch_num = _msg.arg[1].reg;
 
         if (source_name != undefined) {
-            const data = _msg.value[0];            
+            const data = _msg.value[0];
 
-            data.forEach(d => {
+            data.data.forEach(d => {
                 const ch = this.#_SourceMapNames.find(obj => obj.chNum == ch_num && obj.source == source_name);
 
                 if (ch != undefined) {

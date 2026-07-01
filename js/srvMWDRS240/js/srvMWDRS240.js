@@ -85,7 +85,7 @@ class MW_DRS240 extends ClassBaseService_S {
             arg,
             value
         };
-        
+      
         this.EmitMsg(this.#_ExpBus, msg.com, msg);
     }
 
@@ -128,9 +128,15 @@ class MW_DRS240 extends ClassBaseService_S {
                     I_IN: MW_DRS240.SCALE_FACTORS[(val.data[1] & 0x00F0) >> 4]
                 }
                 break;
+            case 0x50:// Входное напряжение
+                this.EmitEvents_proxymodbusdrs_msg_get({arg: [srcName, 4], value: [val.data[0] * this.#_Sources[srcName].Scales.V_IN]});
+                break;
             case 0x60:// Выходные напряжение и сила тока
                 this.EmitEvents_proxymodbusdrs_msg_get({arg: [srcName, 0], value: [val.data[0] * this.#_Sources[srcName].Scales.V_OUT]});
                 this.EmitEvents_proxymodbusdrs_msg_get({arg: [srcName, 1], value: [val.data[1] * this.#_Sources[srcName].Scales.I_OUT]});
+                break;
+            case 0x62:// Температура
+                this.EmitEvents_proxymodbusdrs_msg_get({arg: [srcName, 3], value: [val.data[0] * this.#_Sources[srcName].Scales.TEMP_1]});
                 break;
             case 0x40:// флаги состояния
                 const status = {

@@ -54,7 +54,6 @@ class KinCony extends ClassBaseService_S {
             value
         };
         
-        console.log(`Tossed ${msg.com} to ${this.#_Host} on ${this.#_ExpBus}`);
         this.EmitMsg(this.#_ExpBus, msg.com, msg);
     }
 
@@ -94,10 +93,12 @@ class KinCony extends ClassBaseService_S {
                 break;
             case 0x03:
                 if (srcComm.reg == 0x11) {
-                    //console.log(val.data[0]);
                     for (let i = 0; i < 0x10; i++) {
-                        this.EmitEvents_proxymodbuskcs_msg_get({arg: [srcName, i], value: [((val.data[0] & (1 << i)) >> i)]});
-                    }
+                        const v = ((val.data[0] & (1 << i)) >> i);
+                        if (srcName == 'KCS-03-' && i == 13)
+                            console.log(v);
+                        this.EmitEvents_proxymodbuskcs_msg_get({arg: [srcName, i], value: [v]});
+                    }                    
                 }
                 else {
                     val.data.forEach((v, i) => {
@@ -206,7 +207,7 @@ class KinCony extends ClassBaseService_S {
         let tOut = setTimeout(() => {
             Object.entries(this.#_Sources).forEach(([name, source]) => {
                 if (source.IsConnected) {
-                    this.EmitEvents_logger_log({level: 'I', msg: `${name} connected`, obj: source});
+                    this.EmitEvents_logger_log({level: 'I', msg: `${name} connected`});
                     this.Start(name, source);
                     console.log(`Connections done by KinCony!`);
                 }
@@ -214,7 +215,7 @@ class KinCony extends ClassBaseService_S {
                     console.log(`${name} unconnected`);
                 }
             });
-            this.EmitEvents_logger_log({level: 'I', msg: `Connections done!`, obj: this.SourcesState});            
+            this.EmitEvents_logger_log({level: 'I', msg: `Connections done!`});            
         }, CONNECTION_TIMEOUT);
         Object.values(this.SourcesState)
             .filter(source => source.Protocol === PROTOCOL && !source.IsConnected && source.CheckProcess && source.Status === 'active')
@@ -225,7 +226,7 @@ class KinCony extends ClassBaseService_S {
         });
         if (sourcesCount == 0) {
             clearTimeout(tOut);
-            this.EmitEvents_logger_log({level: 'I', msg: `No unconnected sources found!`, obj: this.SourcesState});
+            this.EmitEvents_logger_log({level: 'I', msg: `No unconnected sources found!`});
         }
     }
 }
