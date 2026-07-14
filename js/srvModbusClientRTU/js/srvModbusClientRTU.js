@@ -1,24 +1,20 @@
 const ClassModbusBase_S = require('./../../srvModbusBase/js/srvModbusBase');
 
-const CONNECTION_TIMEOUT = 5000;
-const PRIMARY_BUS = 'modbusrtuBus';
-
-
-BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
-const PROXY = {dest: 'proxymodbusrtu', com: 'proxymodbusrtu-msg-get'};
-const PROTOCOL = 'modbusrtu';
+const CONNECTION_TIMEOUT = 1000;
 const THIS_NAME = 'modbusclientrtu';
 
 
 class ModbusClientRTU extends ClassModbusBase_S {
+    #_Protocol;
     /**
      * @constructor
      * @description
      * Конструктор класса
      * @param {[ClassBus_S]} _busList - список шин, созданных в проекте
      */
-    constructor({ _busList, _node }) {
-        super({ _name: THIS_NAME, _busNameList: BUS_NAMES_LIST, _busList, _node, _type: 'RTU' });      
+    constructor({ _busList, _primaryBus, _node, _protocol }) {
+        super({ _name: THIS_NAME, _busNameList: ['sysBus', _primaryBus, 'logBus'], _busList, _node, _type: 'RTU' });
+        this.#_Protocol = _protocol;
     }
     
     /**
@@ -47,7 +43,7 @@ class ModbusClientRTU extends ClassModbusBase_S {
             this.Start_sensor_reading();
         }, CONNECTION_TIMEOUT);
         Object.values(this.SourcesState)
-            .filter(source => source.Protocol === PROTOCOL && !source.IsConnected && source.CheckProcess && source.Status === 'active')
+            .filter(source => source.Protocol === this.#_Protocol && !source.IsConnected && source.CheckProcess && source.Status === 'active')
             .forEach((source) => {
                 this.Add_new_source(source, {dest: 'proxymodbusrtu', com: 'proxymodbusrtu-msg-get'});
                 sourcesCount++;

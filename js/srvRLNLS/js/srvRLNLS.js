@@ -1,13 +1,10 @@
 const ClassBaseService_S = require('./../../srvService/js/srvService');
 
-const PRIMARY_BUS = 'modbusnlsBus';
-const CONNECTION_TIMEOUT = 5000;
+const CONNECTION_TIMEOUT = 1000;
 
 EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'source-connect', 'all-disconnect'];
 EVENT_MODBUS_LIST = ['modbusclientnls-send'];
 EVENT_EXPLOIT_LIST = ['modbusnls-msg-get'];
-BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
-const PROTOCOL = 'mbnls';
 const THIS_NAME = 'modbusNLS';
 
 REG_OUT = {
@@ -41,19 +38,24 @@ class RL_NLS extends ClassBaseService_S {
     #_Sources;
     #_Host;
     #_ExpBus;
+    #_Protocol;
+    #_BusNamesList;
+    #_PrimaryBus;
     /**
      * @constructor
      * @description
      * Конструктор класса
      * @param {[ClassBus_S]} _busList - список шин, созданных в проекте
      */
-    constructor({ _busList, _node, _host, _expBus }) {
-        super({ _name: THIS_NAME, _busNameList: [...BUS_NAMES_LIST, _expBus], _busList, _node });
+    constructor({ _busList, _primaryBus, _node, _protocol, _host, _expBus }) {        
+        super({ _name: THIS_NAME, _busNameList: ['sysBus', _primaryBus, 'logBus', _expBus], _busList, _node });
         this.#_Sources = {};
-        this.#_Host = _host;
+        this.#_Protocol = _protocol;
+        this.#_PrimaryBus = _primaryBus;
         this.#_ExpBus = _expBus;
+        this.#_Host = _host;
         this.FillEventOnList('sysBus', EVENT_SYSBUS_LIST);
-        this.FillEventOnList(PRIMARY_BUS, EVENT_MODBUS_LIST);
+        this.FillEventOnList(this.#_PrimaryBus, EVENT_MODBUS_LIST);
         this.FillEventOnList(this.#_ExpBus, EVENT_EXPLOIT_LIST);
         this.EmitEvents_logger_log({level: 'I', msg: 'ModbusNLS initialized.'});
     }
@@ -70,7 +72,7 @@ class RL_NLS extends ClassBaseService_S {
             arg,
             value
         };
-        this.EmitMsg(PRIMARY_BUS, msg.com, msg);
+        this.EmitMsg(this.#_PrimaryBus, msg.com, msg);
     }
 
     /**
@@ -301,7 +303,7 @@ class RL_NLS extends ClassBaseService_S {
             this.EmitEvents_logger_log({level: 'I', msg: `Connections done by NLS!`});           
         }, CONNECTION_TIMEOUT);
         Object.values(this.SourcesState)
-            .filter(source => source.Protocol === PROTOCOL && !source.IsConnected && source.CheckProcess && source.Status === 'active')
+            .filter(source => source.Protocol === this.#_Protocol && !source.IsConnected && source.CheckProcess && source.Status === 'active')
             .forEach((source) => {
                 this.#_Sources[source.Name] = source;
                 this.EmitEvents_modbusnls_source_toss({ arg: [{dest: THIS_NAME, com: 'modbusnls-msg-get'}], value: [source]});

@@ -20,18 +20,17 @@ class ProxyModbusBase extends ClassBaseService_S {
      * Конструктор класса
      * @param {[ClassBus_S]} _busList - список шин, созданных в проекте
      */
-    constructor({ _name, _busNameList, _busList, _node, _type }) {
+    constructor({ _name, _busNameList, _primaryBus, _protocol, _busList, _node, _type }) {
         super({ _name: _name, _busNameList: _busNameList, _busList, _node });
         this.#_SourceMapNames = [];
         this.#_Type = _type.toUpperCase();
-        this.#_PrimaryBus = _busNameList[1];
+        this.#_PrimaryBus = _primaryBus;
+        this.#_Protocol = _protocol;
 
         if (!TYPES.includes(this.#_Type)) {
             this.EmitEvents_logger_log({level: 'W', msg: `Unsupported modbus client type: ${this.#_Type}\nDefaulting to TCP`});
             this.#_Type = "TCP";
         };
-
-        this.#_Protocol = PROTOCOLS[TYPES.indexOf(this.#_Type)];
 
         this.#_SType = SHORT_TYPES[TYPES.indexOf(this.#_Type)];
 

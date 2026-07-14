@@ -1,44 +1,53 @@
 const ClassBaseService_S = require('./../../srvService/js/srvService');
 
-const PRIMARY_BUS = 'modbuskcsBus';
-const CONNECTION_TIMEOUT = 5000;
+const CONNECTION_TIMEOUT = 1000;
 
-EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'source-connect', 'all-disconnect'];
-EVENT_MODBUS_LIST = ['modbusclientkcs-send'];
-EVENT_EXPLOIT_LIST = ['modbuskcs-msg-get'];
-BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
-const PROTOCOL = 'mbkcs';
-const THIS_NAME = 'modbusKCS';
+const EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'source-connect', 'all-disconnect'];
+const EVENT_MODBUS_LIST = ['modbusclientkcs-send'];
+const EVENT_EXPLOIT_LIST = ['modbuskcs-msg-get'];
 
 class KinCony extends ClassBaseService_S {
     #_Sources;
     #_Host;
     #_ExpBus;
+    #_Protocol;
+    #_PrimaryBus;
+    #_Name;
+    #_dest;
+    #_com;
     /**
      * @constructor
      * @description
      * Конструктор класса логгера
      * @param {[ClassBus_S]} _busList - список шин, созданных в проекте
      */
-    constructor({ _busList, _node, _host, _expBus }) {
-        super({ _name: THIS_NAME, _busNameList: [...BUS_NAMES_LIST, _expBus], _busList, _node });
+    constructor({ _busList, _primaryBus, _node, _protocol, _host, _expBus, _Name }) {
+        super({ _name: _Name, _busNameList: ['sysBus', _primaryBus, 'logBus', _expBus], _busList, _node });
         this.#_Sources = {};
-        this.#_Host = _host;
+        this.#_Protocol = _protocol;
+        this.#_PrimaryBus = _primaryBus;
         this.#_ExpBus = _expBus;
+        this.#_Host = _host;
+        this.#_Name = _Name;
+        this.#_dest = `proxymodbuskcs${this.#_Name.includes('2') ? '2' : ''}`;
+        this.#_com = `proxymodbuskcs${this.#_Name.includes('2') ? '2' : ''}-msg-get`;
+
+        this[`HandlerEvents_modbusclientkcs${this.#_Name.includes('2') ? '2' : ''}_send`] = this.HandlerEvents_modbusclientkcs_send.bind(this);
+
         this.FillEventOnList('sysBus', EVENT_SYSBUS_LIST);
-        this.FillEventOnList(PRIMARY_BUS, EVENT_MODBUS_LIST);
+        this.FillEventOnList(this.#_PrimaryBus, [`modbusclientkcs${this.#_Name.includes('2') ? '2' : ''}-send`]);
         this.FillEventOnList(this.#_ExpBus, EVENT_EXPLOIT_LIST);
         this.EmitEvents_logger_log({level: 'I', msg: 'modbusKCS initialized.'});
     }
 
     EmitEvents_proxymodbuskcs_msg_get({arg, value}) {
         const msg = {
-            dest: 'proxymodbuskcs',
-            com: 'proxymodbuskcs-msg-get',
+            dest: this.#_dest,
+            com: this.#_com,
             arg,
             value
         };
-        this.EmitMsg(PRIMARY_BUS, msg.com, msg);
+        this.EmitMsg(this.#_PrimaryBus, msg.com, msg);
     }
 
     /**
@@ -95,8 +104,6 @@ class KinCony extends ClassBaseService_S {
                 if (srcComm.reg == 0x11) {
                     for (let i = 0; i < 0x10; i++) {
                         const v = ((val.data[0] & (1 << i)) >> i);
-                        if (srcName == 'KCS-03-' && i == 13)
-                            console.log(v);
                         this.EmitEvents_proxymodbuskcs_msg_get({arg: [srcName, i], value: [v]});
                     }                    
                 }
@@ -209,19 +216,19 @@ class KinCony extends ClassBaseService_S {
                 if (source.IsConnected) {
                     this.EmitEvents_logger_log({level: 'I', msg: `${name} connected`});
                     this.Start(name, source);
-                    console.log(`Connections done by KinCony!`);
                 }
                 else {
                     console.log(`${name} unconnected`);
                 }
             });
+            console.log(`Connections done by KinCony!`);
             this.EmitEvents_logger_log({level: 'I', msg: `Connections done!`});            
         }, CONNECTION_TIMEOUT);
         Object.values(this.SourcesState)
-            .filter(source => source.Protocol === PROTOCOL && !source.IsConnected && source.CheckProcess && source.Status === 'active')
+            .filter(source => source.Protocol === this.#_Protocol && !source.IsConnected && source.CheckProcess && source.Status === 'active')
             .forEach((source) => {
                 this.#_Sources[source.Name] = source;
-                this.EmitEvents_modbuskcs_source_toss({ arg: [{dest: THIS_NAME, com: 'modbuskcs-msg-get'}], value: [source]});
+                this.EmitEvents_modbuskcs_source_toss({ arg: [{dest: this.#_Name, com: 'modbuskcs-msg-get'}], value: [source]});
                 sourcesCount++;
         });
         if (sourcesCount == 0) {

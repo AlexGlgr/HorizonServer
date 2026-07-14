@@ -1,24 +1,20 @@
 const ClassModbusBase_S = require('./../../srvModbusBase/js/srvModbusBase');
 
-const CONNECTION_TIMEOUT = 5000;
-const PRIMARY_BUS = 'modbustcpBus';
-
-
-BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
-const PROXY = {dest: 'proxymodbustcp', com: 'proxymodbustcp-msg-get'};
-const PROTOCOL = 'modbustcp';
+const CONNECTION_TIMEOUT = 1000;
 const THIS_NAME = 'modbusclienttcp';
 
 
 class ModbusClientTCP extends ClassModbusBase_S {
+    #_Protocol;
     /**
      * @constructor
      * @description
      * Конструктор класса
      * @param {[ClassBus_S]} _busList - список шин, созданных в проекте
      */
-    constructor({ _busList, _node }) {
-        super({ _name: THIS_NAME, _busNameList: BUS_NAMES_LIST, _busList, _node, _type: 'TCP' });      
+    constructor({ _busList, _primaryBus, _node, _protocol }) {
+        super({ _name: THIS_NAME, _busNameList: ['sysBus', _primaryBus, 'logBus'], _busList, _node, _type: 'TCP' });
+        this.#_Protocol = _protocol;
     }
 
     /**
@@ -43,18 +39,18 @@ class ModbusClientTCP extends ClassModbusBase_S {
     Connect() {
         let sourcesCount = 0;
         let tOut = setTimeout(() => {
-            this.EmitEvents_logger_log({level: 'I', msg: `Connections done by modbusTCP!`, obj: this.SourcesState});
-            this.Start();
+            this.EmitEvents_logger_log({level: 'I', msg: `Connections done by modbusTCP!`});
+            this.Start_sensor_reading();
         }, CONNECTION_TIMEOUT);
         Object.values(this.SourcesState)
-            .filter(source => source.Protocol === PROTOCOL && !source.IsConnected && source.CheckProcess && source.Status === 'active')
+            .filter(source => source.Protocol === this.#_Protocol && !source.IsConnected && source.CheckProcess && source.Status === 'active')
             .forEach((source) => {
-                this.Add_new_source(source,PROXY);
+                this.Add_new_source(source, {dest: 'proxymodbustcp', com: 'proxymodbustcp-msg-get'});
                 sourcesCount++;
         });
         if (sourcesCount == 0) {
             clearTimeout(tOut);
-            this.EmitEvents_logger_log({level: 'I', msg: `No unconnected sources found!`, obj: this.SourcesState});
+            this.EmitEvents_logger_log({level: 'I', msg: `No unconnected sources found!`});
         }
     }
 }

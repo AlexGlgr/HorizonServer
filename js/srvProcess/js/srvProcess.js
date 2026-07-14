@@ -5,13 +5,13 @@ const ClassBaseService_S = require('./../../srvService/js/srvService');
  * @constant
  * Таймаут проверки Process запущенных служб
  */
-const PROCESS_CHECK_TIMEOUT = 2000;
+const PROCESS_CHECK_TIMEOUT = 500;
 /**
  * @constant
  * Таймаут перед тем, как Process возбудит событие register
  */
-const PROCESS_BUS_TIMEOUT = 1000;
-const PROCESS_DB_TIMEOUT = 5000;
+const PROCESS_BUS_TIMEOUT = 500;
+const PROCESS_DB_TIMEOUT = 500;
 
 const EVENT_SYSBUS_LIST = ['all-init-stage1-set','process-ws-connect-done', 'process-mb-connect-done'];
 const EVENT_MDBBUS_LIST = ['providermdb-init-stage0-get'];
@@ -252,7 +252,6 @@ class ClassProcessSrv extends ClassBaseService_S {
             })
 
             // Заполняем источники
-            // Заполняем источники
             _dbSources.forEach(source => {
                 try {
                     const protocol = source.Protocol.toLowerCase();
@@ -269,20 +268,20 @@ class ClassProcessSrv extends ClassBaseService_S {
                                         this.CreateBus(hostService.PrimaryBus);
                                     }
                                     if (this.#_ServicesState[hostService.Name] == undefined) {
-                                        hostService.Service = new (require(config[hostService.Name]))({_busList: this.#_GBusList, _primaryBus: hostService.PrimaryBus, _node: this.#_Node});
+                                        hostService.Service = new (require(config[hostService.Name]))({_busList: this.#_GBusList, _primaryBus: hostService.PrimaryBus, _node: this.#_Node, _protocol: hostService.Protocol.toLowerCase(), _Name: hostService.Name});
                                         this.#_ServicesState[hostService.Name] = hostService;
                                     }
 
-                                    service.Service = new (require(config[service.Name]))({_busList: this.#_GBusList, _node: this.#_Node, _host: service.AdvancedOptions.host, _expBus: hostService.PrimaryBus});
+                                    service.Service = new (require(config[service.Name]))({_busList: this.#_GBusList, _primaryBus: service.PrimaryBus, _node: this.#_Node, _protocol: protocol, _host: service.AdvancedOptions.host, _expBus: hostService.PrimaryBus, _Name: service.Name});
                                     this.#_ServicesState[service.Name] = service;
                                 }
                                 else {
-                                    service.Service = new (require(config[service.Name]))({_busList: this.#_GBusList, _primaryBus: service.PrimaryBus, _node: this.#_Node});
+                                    service.Service = new (require(config[service.Name]))({_busList: this.#_GBusList, _primaryBus: service.PrimaryBus, _node: this.#_Node, _protocol: protocol, _Name: service.Name});
                                     this.#_ServicesState[service.Name] = service;
                                 }                                
                             }
                             catch (e) {
-                                console.log(`Failed to create service: ${service}\n${e}`);
+                                console.log(`Failed to create service: ${service.Name}\n${e}`);
                             }
                     })
                     source.CheckProcess = true;

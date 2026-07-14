@@ -1,20 +1,18 @@
 const ClassBaseProxyModbus = require('./../../srvProxyModbusBase/js/srvProxyModbusBase');
 
 const THIS_NAME = 'proxymodbusrtu';
-const PRIMARY_BUS = 'modbusrtuBus';
-const PROTOCOL = 'modbusrtu';
-
-BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
 
 class ProxyModbusRTU extends ClassBaseProxyModbus {
+    #_Protocol;
     /**
      * @constructor
      * @description
      * Конструктор класса
      * @param {[ClassBus_S]} _busList - список шин, созданных в проекте
      */
-    constructor({ _busList, _node }) {
-        super({ _name: THIS_NAME, _busNameList: BUS_NAMES_LIST, _busList, _node, _type: 'RTU' }); 
+    constructor({ _busList, _primaryBus, _node, _protocol }) {
+        super({ _name: THIS_NAME, _busNameList: ['sysBus', _primaryBus, 'logBus'], _primaryBus, _protocol, _busList, _node, _type: 'RTU' });
+        this.#_Protocol = _protocol;
     }
 
     /**

@@ -1,12 +1,9 @@
 const ClassBaseService_S = require('./../../srvService/js/srvService');
 
-const PRIMARY_BUS = 'modbusledBus';
-const CONNECTION_TIMEOUT = 5000;
+const CONNECTION_TIMEOUT = 1000;
 
 EVENT_SYSBUS_LIST = ['all-init-stage1-set', 'source-connect', 'all-disconnect'];
 EVENT_MODBUS_LIST = ['modbusclientled-send'];
-BUS_NAMES_LIST = ['sysBus', PRIMARY_BUS, 'logBus'];
-const PROTOCOL = 'mled';
 const THIS_NAME = 'modbusled';
 
 REG_COLOR_LIST = {
@@ -55,19 +52,23 @@ class ModbusLED extends ClassBaseService_S {
     #_Sources;
     #_Host;
     #_ExpBus;
+    #_Protocol;
+    #_PrimaryBus;
     /**
      * @constructor
      * @description
      * Конструктор класса логгера
      * @param {[ClassBus_S]} _busList - список шин, созданных в проекте
      */
-    constructor({ _busList, _node, _host, _expBus }) {
-        super({ _name: THIS_NAME, _busNameList: [...BUS_NAMES_LIST, _expBus], _busList, _node });
+    constructor({ _busList, _primaryBus, _node, _protocol, _host, _expBus }) {
+        super({ _name: THIS_NAME, _busNameList: ['sysBus', _primaryBus, 'logBus', _expBus], _busList, _node });
         this.#_Sources = {};
-        this.#_Host = _host;
+        this.#_Protocol = _protocol;
+        this.#_PrimaryBus = _primaryBus;
         this.#_ExpBus = _expBus;
+        this.#_Host = _host;        
         this.FillEventOnList('sysBus', EVENT_SYSBUS_LIST);
-        this.FillEventOnList(PRIMARY_BUS, EVENT_MODBUS_LIST);
+        this.FillEventOnList(this.#_PrimaryBus, EVENT_MODBUS_LIST);
         this.EmitEvents_logger_log({level: 'I', msg: 'ModbusLED initialized.'});
     }
 
@@ -229,6 +230,9 @@ class ModbusLED extends ClassBaseService_S {
                 comm.dat = [255, 0];
                 comm.id = 0x10;
                 break;
+            case 'reset':
+                this.#_Sources[source].Groups[grpID].Lights.fill(ModbusLED.LIGHT_STATUS.OFF);
+                break;
             default:
                 this.EmitEvents_logger_log({level: 'W', msg: `Unknown target: ${state.target}`});
                 return;
@@ -240,6 +244,18 @@ class ModbusLED extends ClassBaseService_S {
         catch (e) {
             this.EmitEvents_logger_log({level: 'E', msg: `Unexpected error: ${e.message}`, obj:  e});
         }
+    }
+
+    ResetStates () {
+        Object.entries(this.#_Sources).forEach(([name, source]) => {
+            if (_source.Groups != undefined && _source.Groups.length > 0) {                
+                _source.Groups.forEach((group) => {
+                    if (group.beh == 'Update') {
+                        group.Lights.fill(ModbusLED.LIGHT_STATUS.OFF);
+                    }
+                })
+            }
+        })
     }
 
 
@@ -334,7 +350,7 @@ class ModbusLED extends ClassBaseService_S {
             console.log(`Connections done by MLED!`);
         }, CONNECTION_TIMEOUT);
         Object.values(this.SourcesState)
-            .filter(source => source.Protocol === PROTOCOL && !source.IsConnected && source.CheckProcess && source.Status === 'active')
+            .filter(source => source.Protocol === this.#_Protocol && !source.IsConnected && source.CheckProcess && source.Status === 'active')
             .forEach((source) => {
                 this.#_Sources[source.Name] = source;
                 this.EmitEvents_modbusled_source_toss({ arg: [{dest: THIS_NAME, com: 'modbusled-msg-get'}], value: [source]});
