@@ -130,7 +130,7 @@ class RL_NLS extends ClassBaseService_S {
                 this.EmitEvents_proxymodbusnls_msg_get({arg: [srcName, 2], value: [val.data[1] / 1000]});
                 break;
             case 0x10:
-                this.EmitEvents_proxymodbusnls_msg_get({arg: [srcName, 5], value: [(val.data[0] == 1 ? 'Выход включен' : 'Выход выключен')]});
+                this.EmitEvents_proxymodbusnls_msg_get({arg: [srcName, 5], value: [(val.data[0])]});
                 break;
             case 0xC8:
                 let nameString = '';
@@ -172,11 +172,30 @@ class RL_NLS extends ClassBaseService_S {
     }
 
     HandlerEvents_modbusclientnls_send( _topic, _msg ){
-        const source = _msg.arg[0];
-        const grpID = _msg.arg[1];
-        const [state] = _msg.value[0].value;
+        try {
+            const source_name = _msg.arg[0];
+            const chNum = _msg.arg[1];
+            const [value] = _msg.value;
+            const [val] = value.value;
 
-        
+            let comm_id = 0x06;
+
+            if (chNum < 5)
+                throw 'Cannot set values for NLS channel with num < 5';
+
+            let comm = {
+                id: comm_id,
+                reg: chNum,
+                len: 0,
+                dat: val,
+                mbID: this.#_Sources[source_name].Groups[0].mbID
+            }
+
+            this.EmitEvents_enqueue_command({ arg: [source_name], value: [comm]});
+        }
+        catch (e) {
+            this.EmitEvents_logger_log({level: 'W', msg: `Failed to send command via modbus protocol: ${e.message}`, obj: {exception: e.toString()}});
+        }
     }
 
     /**

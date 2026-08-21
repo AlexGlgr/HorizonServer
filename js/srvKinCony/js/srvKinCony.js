@@ -102,10 +102,13 @@ class KinCony extends ClassBaseService_S {
                 break;
             case 0x03:
                 if (srcComm.reg == 0x11) {
+                    if (val.data[1] != undefined) {
+                        val.data[0] |= (val.data[1] << 13);
+                    }
                     for (let i = 0; i < 0x10; i++) {
                         const v = ((val.data[0] & (1 << i)) >> i);
                         this.EmitEvents_proxymodbuskcs_msg_get({arg: [srcName, i], value: [v]});
-                    }                    
+                    }
                 }
                 else {
                     val.data.forEach((v, i) => {
@@ -145,7 +148,30 @@ class KinCony extends ClassBaseService_S {
                 dat: val,
                 mbID: this.#_Sources[source_name].Groups[0].mbID
             }
+
+            if (chNum == 32) {
+                comm.id = 0x10;
+                comm.reg = 9;
+                switch (val) {
+                    case 'UP':
+                        comm.dat = [0,1,1,0];
+                        this.EmitEvents_logger_log({level: 'D', msg: `[${Date.now()}] [${source_name}] Lift going up!`});
+                        break;
+                    case 'DOWN':
+                        comm.dat = [1,0,0,1];
+                        this.EmitEvents_logger_log({level: 'D', msg: `[${Date.now()}] [${source_name}] Lift going down!`});
+                        break;
+                    case 'STOP':
+                    default:
+                        comm.dat = [0,0,0,0];
+                        break;
+                }
+            }
+
             this.EmitEvents_enqueue_command({ arg: [source_name], value: [comm]});
+            if (val > 0) {
+                this.EmitEvents_logger_log({level: 'D', msg: `[${Date.now()}] [${source_name}] Channel ${chNum} set to 1`});
+            }            
         }
         catch (e) {
             this.EmitEvents_logger_log({level: 'W', msg: `Failed to send command via modbus protocol: ${e.message}`, obj: {exception: e.toString()}});
@@ -172,6 +198,26 @@ class KinCony extends ClassBaseService_S {
                 else if (group.beh == 'Sensor' && group.type == 'holdReg') {
                     let offset = 0x11;
                     let quan = 1;
+                    if (group.startReg != undefined && group.numRegs != undefined) {
+                        offset = group.startReg + 1;
+                        quan = group.numRegs;
+                    }
+                    setInterval(() => {
+                        let comm = {
+                            id: 0x03,
+                            reg: offset,
+                            len: quan,
+                            dat: 0,
+                            mbID: group.mbID
+                        }
+                        if (_source.IsConnected) {
+                            this.EmitEvents_enqueue_command({ arg: [_name], value: [comm]});
+                        }
+                    },group.interval);
+                }
+                else if (group.beh == 'Sensor2' && group.type == 'holdReg') {
+                    let offset = 0x11;
+                    let quan = 2;
                     if (group.startReg != undefined && group.numRegs != undefined) {
                         offset = group.startReg + 1;
                         quan = group.numRegs;
